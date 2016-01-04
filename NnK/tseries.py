@@ -59,25 +59,35 @@ def moving(a,scales=None,operation='rms'):
             if operation is 'rms':  
                 # The cumulative sum can be exploited to calculate a moving average (the
                 # cumsum function is quite efficient)
-                csqr = np.cumsum(tr.detrend('linear').data ** 2)            
+                csqr = np.cumsum(tr.detrend('linear').data ** 2)        
 
-                # Convert to float
-                csqr = np.require(csqr, dtype=np.float)
+            if operation is 'average':  
+                # The cumulative sum can be exploited to calculate a moving average (the
+                # cumsum function is quite efficient)
+                csqr = np.cumsum(tr.detrend('linear').data)        
+
+            # Convert to float
+            csqr = np.require(csqr, dtype=np.float)
 
             for n, s in enumerate(scales) :
                 
                 # Avoid scales when too wide for the current channel
                 if (s < (tr.stats.npts - s)) :    
                     
-                    # Compute the RMS
-                    if operation is 'rms':  
+                    # Compute the sliding window
+                    if operation is 'rms' | operation is 'average' | operation is 'sum':  
                         timeseries[t][n][s:tr.stats.npts] = csqr[s:] - csqr[:-s]
-                        timeseries[t][n][:] /= s                    
+
+                        not operation is 'sum':
+                            timeseries[t][n][:] /= s                    
 
                         # Pad with modified scale definitions
                         timeseries[t][n][0] = csqr[0]
                         for x in range(1, s-1):
-                            timeseries[t][n][x] = (csqr[x] - csqr[0])/(1+x)
+                            timeseries[t][n][x] = (csqr[x] - csqr[0])
+                            
+                            not operation is 'sum':
+                                timeseries[t][n][x] = timeseries[t][n][x]/(1+x)
 
                     # Avoid division by zero by setting zero values to tiny float
                     dtiny = np.finfo(0.0).tiny
