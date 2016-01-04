@@ -61,7 +61,7 @@ def moving(a,scales=None,operation='rms'):
                 # cumsum function is quite efficient)
                 csqr = np.cumsum(tr.detrend('linear').data ** 2)        
 
-            if operation is 'average':  
+            if (operation is 'average') or  (operation is 'sum'):  
                 # The cumulative sum can be exploited to calculate a moving average (the
                 # cumsum function is quite efficient)
                 csqr = np.cumsum(tr.detrend('linear').data)        
@@ -75,18 +75,20 @@ def moving(a,scales=None,operation='rms'):
                 if (s < (tr.stats.npts - s)) :    
                     
                     # Compute the sliding window
-                    if operation is 'rms' | operation is 'average' | operation is 'sum':  
+                    if (operation is 'rms') or (operation is 'average') or (operation is 'sum'):  
                         timeseries[t][n][s:tr.stats.npts] = csqr[s:] - csqr[:-s]
 
-                        not operation is 'sum':
+                        # for average and rms only 
+                        if operation is not 'sum':
                             timeseries[t][n][:] /= s                    
 
                         # Pad with modified scale definitions
                         timeseries[t][n][0] = csqr[0]
                         for x in range(1, s-1):
                             timeseries[t][n][x] = (csqr[x] - csqr[0])
-                            
-                            not operation is 'sum':
+
+                            # for average and rms only
+                            if operation is not 'sum':
                                 timeseries[t][n][x] = timeseries[t][n][x]/(1+x)
 
                     # Avoid division by zero by setting zero values to tiny float
