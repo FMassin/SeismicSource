@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-NaiNo-Kami.py.core.tseries - Module for time series 
+tseries - Module for time series 
 ======================================================
 This module ...
 
@@ -51,27 +51,6 @@ def correlatecomponents(a, scales=None, operation='cecm'):
     # Initialize results at the minimal size
     correlations = np.zeros(( tmax, len(scales), nmax )) 
 
-    for t, tr in enumerate(a) : # the characteristic function calculations         
-            
-        # Avoid clock channels 
-        if not tr.stats.channel == 'YH':
-
-            # for Z component, get E and N 
-            if (tr.stats.channel[-1] == 'Z') or (tr.stats.channel == 'VERTICAL') :
-
-                for u, ts in enumerate(a) :
-                    #print ts.stats.station, ts.stats.channel
-
-                    if (ts.stats.station == tr.stats.station) or (re.match(r'[ZVzv]', tr.stats.station[-1]) and (ts.stats.station[:-1] == tr.stats.station[:-1])) : #and (ts.stats.channel[:-1] == tr.stats.channel[:-1]):
-                        #print ts.stats.station, tr.stats.station
-                        #print ts.stats.channel, tr.stats.channel
-
-                        if (ts.stats.channel[-1] == 'E') or (ts.stats.channel == 'EAST'):
-                            E = ts.detrend('linear').data
-                            print "E"
-                        if (ts.stats.channel[-1] == 'N') or (ts.stats.channel == 'NORTH') :
-                            N = ts.detrend('linear').data
-                            print "N"
 
 
 
