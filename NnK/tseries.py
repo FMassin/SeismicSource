@@ -17,9 +17,69 @@ This module ...
 """
 
 
-def moving(a,scales=None,operation='rms'):
+def correlatecomponents(a, scales=None, operation='cecm'):
     """
-    Moving (sum|average|rms) perform calculation by 
+    correlatecomponents performs correlation between the 
+    components of the same seismometers by rolling 
+    operation.
+
+    :type a: ObsPy :class:`~obspy.core.stream`
+    :param a: datastream of e.g. seismogrammes.
+    :type scales: vector
+    :param scales: scale(s) of correlation operation.
+    :type operation: string
+    :param operation: type of operation.
+    :rtype: array
+    :return: array of root mean square time series, scale 
+             in r.stats._format (samples scale unit).
+    """
+    # 1) Calculate moving rms and average, see moving()
+    # 2) ...
+    # 3) ... 
+
+    import copy
+    from obspy.core.stream import Stream
+    import numpy as np
+    import re
+
+    # Initialize multiscale if undefined
+    (tmax,nmax) = streamdatadim(a)
+    if scales is None:
+        scales = [2**i for i in range(3,999) if 2**i < (nmax - 2**i)]
+        scales = np.require(scales, dtype=np.int) 
+    
+    # Initialize results at the minimal size
+    correlations = np.zeros(( tmax, len(scales), nmax )) 
+
+    for t, tr in enumerate(a) : # the characteristic function calculations         
+            
+        # Avoid clock channels 
+        if not tr.stats.channel == 'YH':
+
+            # for Z component, get E and N 
+            if (tr.stats.channel[-1] == 'Z') or (tr.stats.channel == 'VERTICAL') :
+
+                for u, ts in enumerate(a) :
+                    #print ts.stats.station, ts.stats.channel
+
+                    if (ts.stats.station == tr.stats.station) or (re.match(r'[ZVzv]', tr.stats.station[-1]) and (ts.stats.station[:-1] == tr.stats.station[:-1])) : #and (ts.stats.channel[:-1] == tr.stats.channel[:-1]):
+                        #print ts.stats.station, tr.stats.station
+                        #print ts.stats.channel, tr.stats.channel
+
+                        if (ts.stats.channel[-1] == 'E') or (ts.stats.channel == 'EAST'):
+                            E = ts.detrend('linear').data
+                            print "E"
+                        if (ts.stats.channel[-1] == 'N') or (ts.stats.channel == 'NORTH') :
+                            N = ts.detrend('linear').data
+                            print "N"
+
+
+
+
+
+def moving(a, scales=None, operation='rms'):
+    """
+    moving (sum|average|rms) performs calculation by 
     creating series of operations of different subsets of 
     the full data set. This is also called rolling 
     operation.
@@ -27,7 +87,7 @@ def moving(a,scales=None,operation='rms'):
     :type a: ObsPy :class:`~obspy.core.stream`
     :param a: datastream of e.g. seismogrammes.
     :type scales: vector
-    :param scales: scale of timeseries operation.
+    :param scales: scale(s) of timeseries operation.
     :type operation: string
     :param operation: type of operation.
     :rtype: array
@@ -51,7 +111,7 @@ def moving(a,scales=None,operation='rms'):
     # Initialize results at the minimal size
     timeseries = np.zeros(( tmax, len(scales), nmax )) 
 
-    for t, tr in enumerate(a) : # the characteristic function calculations         
+    for t, tr in enumerate(a) : # the channel-wise calculations         
             
         # Avoid clock channels 
         if not tr.stats.channel == 'YH':
@@ -96,8 +156,7 @@ def moving(a,scales=None,operation='rms'):
                     idx = timeseries[t][n] < dtiny
                     timeseries[t][n][idx] = dtiny 
     
-    return timeseries,scales
-
+    return timeseries, scales
 
 def streamdatadim(a):
     """
