@@ -16,6 +16,39 @@ This module ...
     ...
 """
 
+# def ggg(...):
+#         """
+#         Run a ...
+#
+#         :param type: String that specifies which trigger is applied (e.g.
+#             ``'recstalta'``).
+#         :param options: Necessary keyword arguments for the respective
+#             trigger.
+#
+#         .. note::
+#
+#             The raw data is not accessible anymore afterwards.
+#
+#         .. rubric:: _`Supported Trigger`
+#
+#         ``'classicstalta'``
+#             Computes the classic STA/LTA characteristic function (uses
+#             :func:`obspy.signal.trigger.classicSTALTA`).
+#
+#         .. rubric:: Example
+#
+#         >>> ss.ssss('sss', ss=1, sss=4)  # doctest: +ELLIPSIS
+#         <...aaa...>
+#         >>> aaa.aaa()  # aaa
+#
+#         .. plot::
+#
+#             from ggg import ggg
+#             gg = ggg()
+#             gg.ggggg("ggggg", ggggg=3456)
+#             gg.ggg()
+#         """
+
 import os
 
 def readallchannels(dataset, operation='eventdir'):
