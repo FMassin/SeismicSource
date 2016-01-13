@@ -4,6 +4,10 @@ source - Module to model seismic sources
 ======================================================
 This module ...
 
+.. rubric:: Example
+    
+    
+
 .. figure:: /_images/Event.png
 
 .. note::
@@ -50,15 +54,15 @@ This module ...
 #         """
 
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 #import obspy.imaging.scripts.mopad
 
-
-
-
-
-def sheartensile_radpat(mt, TKO, AZM, wave='None', poisson=0.25) : 
+#class ShearTensile:
+#    def __init__(self):
+        
+def sheartensile_radpat(mt, wave='P', TKO=np.arange(0,181,1)*np.pi/180, AZM=np.arange(0,361,1)*np.pi/180, poisson=0.25) : 
     """
     rpgen(strike,dip,rake,isotropic,poisson, TKO, AZM) calculates P-wave, S-wave,
     SH-wave and SV-wave radiation pattern unp.sing shear-tensile source model
@@ -136,6 +140,8 @@ def sheartensile_radpat(mt, TKO, AZM, wave='None', poisson=0.25) :
     # 2) ...
     # 3) ... 
     
+    # Moment tensor
+    ## Getting various formats
     if len(mt) == 3 :
         strike, dip, rake = mt
         isotropic = 0
@@ -148,61 +154,89 @@ def sheartensile_radpat(mt, TKO, AZM, wave='None', poisson=0.25) :
     elif len(mt) == 5 :
         strike, dip, rake, isotropic, deviatoric = mt
 
+    elif len(mt) == 6 :
+        print 'We need to find a piece of code to make that...'
+
+    elif len(mt) == 9 :
+        print 'We need to find a piece of code to make that...'
+
     else:
         print 'Can t yet compute this moment tensor.'
 
+    ## convert isotropic ratio to angle
+    isotropic = np.arcsin(isotropic)
+    
+    # Spherical angles
+    ## Make sure we got np.array 
     if np.asarray(TKO) is not TKO:
         TKO = np.asarray(TKO)
     if np.asarray(AZM) is not AZM:
         AZM = np.asarray(AZM)
 
-    if wave in ('None', 'P', 'P-wave', 'P wave'):
+    ## Make a 2D grid if 2 1d arrays
+    if np.shape(AZM.shape) == np.shape(TKO.shape) and np.shape(AZM.shape) == (1,) and AZM.shape != TKO.shape:
+        [AZM,TKO] = np.meshgrid(AZM,TKO)
+
+
+    # Radiation patterns
+    ## Tensile definitions by Vavryèuk (2001)
+    if wave in ('P', 'P-wave', 'P wave'):
         G = np.cos(TKO)*(np.cos(TKO)*(np.sin(isotropic)*(2*np.cos(dip)**2 - (2*poisson)/(2*poisson - 1)) + np.sin(2*dip)*np.cos(isotropic)*np.sin(rake)) - np.cos(AZM)*np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike)) + np.sin(AZM)*np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic))) + np.sin(AZM)*np.sin(TKO)*(np.cos(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic)) + np.cos(AZM)*np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) + np.sin(AZM)*np.sin(TKO)*(np.cos(isotropic)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) - np.cos(AZM)*np.sin(TKO)*(np.cos(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike)) - np.sin(AZM)*np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) + np.cos(AZM)*np.sin(TKO)*(np.cos(isotropic)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)))
     
-    elif wave in ('S', 'S-wave', 'S wave'):
-        G = np.sqrt( sheartensile_radpat(mt, TKO, AZM, 'SH', poisson)**2 + sheartensile_radpat(mt, TKO, AZM, 'SV', poisson)**2 )
-
     elif wave in ('SH', 'Sh', 'Sh-wave', 'Sh wave', 'SH-wave', 'SH wave'):
         G = np.cos(TKO)*(np.cos(AZM)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic)) + np.sin(AZM)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike))) - np.sin(AZM)*np.sin(TKO)*(np.sin(AZM)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) - np.cos(AZM)*(np.cos(isotropic)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) + np.cos(AZM)*np.sin(TKO)*(np.sin(AZM)*(np.cos(isotropic)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)) + np.cos(AZM)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)))
         
     elif wave in ('SV', 'Sv', 'Sv-wave', 'Sv wave', 'SV-wave', 'SV wave'):
         G = np.sin(AZM)*np.sin(TKO)*(np.cos(AZM)*np.cos(TKO)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) - np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic)) + np.cos(TKO)*np.sin(AZM)*(np.cos(isotropic)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) - np.cos(TKO)*(np.sin(TKO)*(np.sin(isotropic)*(2*np.cos(dip)**2 - (2*poisson)/(2*poisson - 1)) + np.sin(2*dip)*np.cos(isotropic)*np.sin(rake)) + np.cos(AZM)*np.cos(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike)) - np.cos(TKO)*np.sin(AZM)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic))) + np.cos(AZM)*np.sin(TKO)*(np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike)) + np.cos(TKO)*np.sin(AZM)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) - np.cos(AZM)*np.cos(TKO)*(np.cos(isotropic)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)))
     
+    ## Re-using the same programme to get other things ... 
+    elif wave in ('S', 'S-wave', 'S wave'):
+        G = np.sqrt( sheartensile_radpat(mt, 'SH', TKO, AZM, poisson)**2 + sheartensile_radpat(mt, 'SV', TKO, AZM, poisson)**2 )
+
     elif wave in ('S/P', 's/p'):
-        G = sheartensile_radpat(mt, TKO, AZM, 'S', poisson)/sheartensile_radpat(mt, TKO, AZM, 'P', poisson)  
+        G = sheartensile_radpat(mt, 'S', TKO, AZM, poisson)/sheartensile_radpat(mt, 'P', TKO, AZM, poisson)  
 
     elif wave in ('P/S', 'p/s'):
-        G = sheartensile_radpat(mt, TKO, AZM, 'P', poisson)/sheartensile_radpat(mt, TKO, AZM, 'S', poisson)  
+        G = sheartensile_radpat(mt, 'P', TKO, AZM, poisson)/sheartensile_radpat(mt, 'S', TKO, AZM, poisson)  
 
     elif wave in ('SH/P', 'sh/p'):
-        G = sheartensile_radpat(mt, TKO, AZM, 'SH', poisson)/sheartensile_radpat(mt, TKO, AZM, 'P', poisson)
+        G = sheartensile_radpat(mt, 'SH', TKO, AZM, poisson)/sheartensile_radpat(mt, 'P', TKO, AZM, poisson)
 
     elif wave in ('SV/P', 'sv/p'):
-        G = sheartensile_radpat(mt, TKO, AZM, 'SV', poisson)/sheartensile_radpat(mt, TKO, AZM, 'P', poisson)
+        G = sheartensile_radpat(mt, 'SV', TKO, AZM, poisson)/sheartensile_radpat(mt, 'P', TKO, AZM, poisson)
 
     elif wave in ('SH/S', 'sh/s'):
-        G = sheartensile_radpat(mt, TKO, AZM, 'SH', poisson)/sheartensile_radpat(mt, TKO, AZM, 'S', poisson)
+        G = sheartensile_radpat(mt, 'SH', TKO, AZM, poisson)/sheartensile_radpat(mt, 'S', TKO, AZM, poisson)
 
     elif wave in ('SV/S', 'sv/s'):
-        G = sheartensile_radpat(mt, TKO, AZM, 'SV', poisson)/sheartensile_radpat(mt, TKO, AZM, 'S', poisson)
+        G = sheartensile_radpat(mt, 'SV', TKO, AZM, poisson)/sheartensile_radpat(mt, 'S', TKO, AZM, poisson)
+
+    ## Making sure you get that error.
     else:
         print 'Can t yet compute this wave type.'
 
     return G
 
 
-def sheartensile_plot(mt, wave='None', poisson=0.25) :     
+def sheartensile_surf(mt, wave='P', poisson=0.25, style='None') :     
         
-    AZIMUTH = np.arange(0,360,5)*np.pi/180
-    TAKEOFF = np.arange(0,180,5)*np.pi/180
+    AZIMUTH = np.arange(0,365,5)*np.pi/180
+    TAKEOFF = np.arange(0,185,5)*np.pi/180
     [AZIMUTH,TAKEOFF] = np.meshgrid(AZIMUTH,TAKEOFF)
 
-    G = sheartensile_radpat(mt, TAKEOFF, AZIMUTH, wave, poisson)
 
-    G[G < -10] = -np.inf
-    G[G > 10 ] = np.inf
+    G = sheartensile_radpat(mt, wave, TAKEOFF, AZIMUTH, poisson)
+    
+    #G[G < -10] = -np.inf
+    #G[G > 10 ] = np.inf
 
-    scale = np.abs(G)
+    if style in ('sign', 'bb', 'beachball', 'DC', 'fp'):
+        G[G < 0] = -1
+        G[G >= 0] = 1
+        scale=1
+    elif style == 'None' : 
+        scale = np.abs(G)
+    
     Y = scale*np.cos(AZIMUTH) * np.sin(TAKEOFF)
     X = scale*np.sin(AZIMUTH) * np.sin(TAKEOFF)
     Z = scale*-np.cos(TAKEOFF)
@@ -218,5 +252,33 @@ def sheartensile_plot(mt, wave='None', poisson=0.25) :
     ax.plot_surface(X,Y,Z,linewidth=0, rstride=2, cstride=2, facecolors=s_m.to_rgba(G))
     plt.colorbar(s_m)
     plt.show() 
+
+def sheartensile_testisotropic():
+
+    rms=[]
+    pythagoresum=[]
+    average=[]
+    for x in range(0, 100):
+        Prd = sheartensile_radpat([0, 0, 0.5, x/100. ],'P') 
+        Srd = sheartensile_radpat([0, 0, 0.5, x/100. ],'S') 
+        P = np.sum(Prd**2)/np.prod(Prd.shape) # classic rms
+        S = np.sum(Srd**2)/np.prod(Srd.shape)
+        rms.append(S/P)
+        P = np.sqrt(np.sum(Prd**2)) # pythagorian sum
+        S = np.sqrt(np.sum(Srd**2)) 
+        pythagoresum.append(S/P)
+        P = np.average(np.abs(Prd)) # amplitude average
+        S = np.average(np.abs(Srd)) 
+        average.append(S/P)        
+
+    plt.plot(np.arange(100),rms, 'r--', np.arange(100),pythagoresum, 'bs', np.arange(100),average, 'g^')
+    plt.xlabel('Isotropic %')
+    plt.ylabel('S/P')
+    plt.title('This how S/P ratio evolve with isotropic component')
+    plt.grid(True)
+    plt.legend( ["RMS", "Pythagorian sum", "Average" ] )
+    plt.show()
+
+
 
         
