@@ -59,113 +59,121 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 #import obspy.imaging.scripts.mopad
 
-class SeismicSourceModel(object):
 
-    # general attribut definition
-    author = 'Ceci est a moi, A MOUHA, A-MOU-HAAAAAA'
-
-    def __init__(self, mt, wave, observation, poisson=0.25):
-
-        self.mt = mt
-        self.wave = wave
-        self.observation = observation
-        self.poisson = poisson
-
-    def sheartensite(self):
-
-        rd = radpat_sheartensile_vavryeuk(self.mt, self.wave) 
-
-        return rd
-
-    def surfacemotions(self,style='None'):
-
-        surfacemotion(self.mt, self.wave, self.poisson, style) 
-
-    def isotropiceffectonSP(self):
-
-        isotropiceffectonSP(self.mt)
-
-
-
-
-
-def farfield_radpat(mt, wave, points):
+def sphere(r=1.,n=100.):
     """
-    Returns the P farfield radiation pattern
-    based on Aki & Richards Eq 4.29
+    produce the polar coordinates of a sphere. 
 
-    :param mt: Focal mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - the
-               six independent components of the moment tensor)
+    :type r, n: variables
+    :param r, n: radius and number of resolution points.
+    
+    :rtype : list
+    :return : 3d list of phi, theta and radius.
 
-    :type wave: String
-    :param wave: type of wave to compute
+    .. seealso::
 
-    :param points: 3D vector array with shape [3,npts] (x,y,z) or [2,npts]
-                   (theta,phi) The normalized displacement of the moment
-                   tensor source is computed at these points.
+        numpy.linspace : produces the resolution vectors.
 
-    :return: 3D vector array with shape [3,npts] that contains the
-             displacement vector for each grid point
+        numpy.meshgrid : produce the grid from the vectors.
+
+    .. rubric:: Example
+
+        # 100 coordinates on sphere or radius 5
+        points = source.sphere_spherical(r=5, n=100)
+        # Unit sphere of 50 points
+        points = source.sphere_spherical(n=50)               
+
+    .. plot::
+
+        # run one of the example
+        points = spherical_to_cartesian(points)
+        fig = plt.figure()
+        ax=fig.gca(projection='3d')
+        ax.set_aspect("equal")
+        ax.plot_wireframe(points[0], points[1], points[2], color="r")
+        plt.show() 
+
     """
-    # Get full mt from 6-elt mt
-    Mpq = fullmt(mt)
+    # Get the resolution (sorry this is ugly)
+    c = 0.038 ; 
+    na = n**(.5+c) 
+    nt = n**(.5-c)
 
-    ## Make sure we got np.array 
-    if np.asarray(points) is not points:
-        points = np.asarray(points)
-   
-    ndim, npoints = points.shape
-    if ndim == 2:
-        # points are given as theta,phi
-        newpoints = np.empty((3, npoints))
-        newpoints[0] = np.sin(points[0]) * np.cos(points[1])
-        newpoints[1] = np.sin(points[0]) * np.sin(points[1])
-        newpoints[2] = np.cos(points[0])
-        points = newpoints
-        ndim, npoints = points.shape
-    elif ndim == 3:
-        # points are given as x,y,z, (same system as the moment tensor)
-        pass
+    [AZIMUTH,TAKEOFF] = np.meshgrid( np.linspace(0, 2*np.pi, na), np.linspace(0, np.pi, nt) )
+
+    RADIUS = np.ones(AZIMUTH.shape)*r
+
+    return [ AZIMUTH, TAKEOFF, RADIUS ]
+
+
+def cartesian_to_spherical(vector):
+    """This file is part of the program relax (Edward d'Auvergne).
+    
+    http://svn.gna.org/svn/relax/1.3/maths_fns/coord_transform.py
+
+    Convert the Cartesian vector [x, y, z] to spherical coordinates [theta, phi, r].
+
+    The parameter r is the radial distance, theta is the polar angle, and phi is the azimuth.
+
+
+    @param vector:  The Cartesian vector [x, y, z].
+    @type vector:   numpy rank-1, 3D array
+    @return:        The spherical coordinate vector [theta, phi, r].
+    @rtype:         numpy rank-1, 3D array
+    """
+
+    # Make sure we got np.array 
+    if np.asarray(vector) is not vector:
+        vector = np.asarray(vector)
+
+    # The radial distance.
+    r = np.sqrt((vector**2).sum(axis=0))
+
+    # Unit vector.
+    unit = vector / r
+
+    # The polar angle.
+    theta = np.arccos(unit[2])
+
+    # The azimuth.
+    phi = np.arctan2(unit[1], unit[0])
+
+    # Return the spherical coordinate vector.
+    return [theta, phi, r]
+
+
+def spherical_to_cartesian(vector):
+    """This file is part of the program relax (Edward d'Auvergne).
+    
+    http://svn.gna.org/svn/relax/1.3/maths_fns/coord_transform.py
+
+    Convert the spherical coordinate vector [theta, phi, r] to the Cartesian vector [x, y, z].
+
+    The parameter r is the radial distance, theta is the polar angle, and phi is the azimuth.
+
+
+    @param vector:  The spherical coordinate vector [phi, theta, r].
+    @type vector:   3D array or list
+    @param cart_vect:       The Cartesian vector [x, y, z].
+    @type cart_vect:        3D array or list
+    """
+
+    # Trig alias.
+    sin_theta = np.sin(vector[1])
+
+    # Unit vector if r is missing
+    if len(vector) == 2 :
+        r=1
     else:
-        raise ValueError('points should have shape 2 x npoints or 3 x npoints')
+        r=vector[2]
 
-    # precompute directional cosine array
-    dists = np.sqrt(points[0] * points[0] + points[1] * points[1] +
-                    points[2] * points[2])
+    # The vector.
+    x = r * np.cos(vector[0]) * sin_theta
+    y = r * np.sin(vector[0]) * sin_theta
+    z = r * np.cos(vector[1])
 
-    # In gamma, all points are taken to a unit distance, same angle:
-    gammas = points / dists
+    return [x, y, z]
 
-    # initialize displacement array
-    disp = np.empty((ndim, npoints))
-
-    # loop through points
-    for ipoint in range(npoints):
-        
-        gamma = gammas[:, ipoint]
-
-        if wave in ('S', 'S wave', 'S-wave'):
-
-            Mp = np.dot(Mpq, gamma)
-
-            # loop through displacement component [n index]
-            for n in range(ndim):
-                psum = 0.0
-                for p in range(ndim):
-                    deltanp = int(n == p)
-                    psum += (gamma[n] * gamma[p] - deltanp) * Mp[p]
-                disp[n, ipoint] = psum
-
-        elif wave in ('P', 'P wave', 'P-wave'):
-
-            gammapq = np.outer(gamma, gamma)
-            gammatimesmt = gammapq * Mpq
-            
-            # loop through displacement component [n index]
-            for n in range(ndim):
-                disp[n, ipoint] = gamma[n] * np.sum(gammatimesmt.flatten())
-
-    return disp, points
 
 def fullmt(mt):
     """takes 6 comp moment tensor and returns full 3x3 moment tensor"""
@@ -175,51 +183,138 @@ def fullmt(mt):
     return mt_full
 
 
- 
-def farfield_surf(mt, wave='P',style='None') :     
+
+class Model(object):
+
+    def __init__(self, mt, poisson=0.25):
+        self.mt = mt
+        self.poisson = poisson
+
+    def farfield_radpat(self, wave='P', obs_cart='None', obs_sph=sphere(r=1.,n=500.)):
+        """
+        Returns the P farfield radiation pattern
+        based on Aki & Richards Eq 4.29
+
+        :param mt: Focal mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - the
+                   six independent components of the moment tensor)
+
+        :type wave: String
+        :param wave: type of wave to compute
+
+        :param points: 3D vector array with shape [3,npts] (x,y,z) or [2,npts]
+                       (theta,phi) The normalized displacement of the moment
+                       tensor source is computed at these points.
+
+        :return: 3D vector array with shape [3,npts] that contains the
+                 displacement vector for each grid point
+        """
         
-    AZIMUTH = np.arange(0,365,5)*np.pi/180
-    TAKEOFF = np.arange(0,185,5)*np.pi/180
-    [AZIMUTH,TAKEOFF] = np.meshgrid(AZIMUTH,TAKEOFF)
+        # Get full mt
+        ## ... from 6-elt mt
+        Mpq = fullmt(self.mt)
+        ## ... from strike, dip, rake, iso, clvd
+        ## ... from strike, dip, rake
 
-    points = [ np.reshape(TAKEOFF, (1,np.prod(AZIMUTH.shape)))[0].tolist() ,  np.reshape(AZIMUTH, (1,np.prod(TAKEOFF.shape)))[0].tolist() ]
-    
-    # Get radiation pattern
-    G, pointscart = farfield_radpat(mt, wave, points)
+        # Get observation points
+        ## Get unit sphere, or spherical coordinate if given 
+        if obs_cart == 'None' :
+            obs_cart = spherical_to_cartesian(obs_sph)
+        ## Make sure they are np.array 
+        if np.asarray(obs_cart) is not obs_cart:
+            obs_cart = np.asarray(obs_cart)
+        ## Keeping that in mind
+        requestdimension = obs_cart.shape
+        obs_cart = np.reshape(obs_cart, (3, np.prod(requestdimension)/3))
+        
+        # Displacement array    
+        # precompute directional cosine array
+        dists = np.sqrt(obs_cart[0] * obs_cart[0] + obs_cart[1] * obs_cart[1] +
+                        obs_cart[2] * obs_cart[2])
 
-    # Take a cartesian radpat, make a spherical (much easier to plot)
-    magn = np.sum(G * pointscart, axis=0)
-    magn /= np.max(np.abs(magn))
-    G = np.sqrt( G[0]**2 + G[1]**2 + G[2]**2 ) * magn
-    G = np.reshape(G, AZIMUTH.shape )
+        # In gamma, all points are taken to a unit distance, same angle:
+        gammas = obs_cart / dists
 
-    # Styles
-    if style in ('sign', 'bb', 'beachball', 'DC', 'fp'):
-        G[G < 0] = -1
-        G[G >= 0] = 1
-        scale=1
-    elif style == 'None' : 
-        scale = np.abs(G)
-    
-    Y = scale*np.cos(AZIMUTH) * np.sin(TAKEOFF)
-    X = scale*np.sin(AZIMUTH) * np.sin(TAKEOFF)
-    Z = scale*-np.cos(TAKEOFF)
+        # initialize displacement array
+        ndim, npoints = obs_cart.shape
+        disp = np.empty(obs_cart.shape)
 
-    # initializing the colormap machinery
-    norm = matplotlib.colors.Normalize(vmin=np.min(G),vmax=np.max(G))
-    c_m = matplotlib.cm.Spectral
-    s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
-    s_m.set_array([])
-    
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')  
-    ax.plot_surface(X,Y,Z,linewidth=0, rstride=2, cstride=2, facecolors=s_m.to_rgba(G))
-    plt.colorbar(s_m)
-    plt.xlabel('x')
-    plt.ylabel('y')
-    plt.show() 
+        # loop through points
+        for ipoint in range(npoints):
+            
+            gamma = gammas[:, ipoint]
+
+            if wave in ('S', 'S wave', 'S-wave'):
+
+                Mp = np.dot(Mpq, gamma)
+
+                # loop through displacement component [n index]
+                for n in range(ndim):
+                    psum = 0.0
+                    for p in range(ndim):
+                        deltanp = int(n == p)
+                        psum += (gamma[n] * gamma[p] - deltanp) * Mp[p]
+                    disp[n, ipoint] = psum
+
+            elif wave in ('P', 'P wave', 'P-wave'):
+
+                gammapq = np.outer(gamma, gamma)
+                gammatimesmt = gammapq * Mpq
+                
+                # loop through displacement component [n index]
+                for n in range(ndim):
+                    disp[n, ipoint] = gamma[n] * np.sum(gammatimesmt.flatten())
+
+        # Reshape to request dimensions
+        obs_cart = np.reshape(obs_cart, requestdimension)
+        disp = np.reshape(disp, requestdimension)
+
+        return disp, obs_cart
+
+    def farfield_surf(self, wave='P',style='None') :                     
+        
+
+        # Get radiation pattern
+        G, pointscart = self.farfield_radpat(wave)
+
+        AZIMUTH, TAKEOFF, RADIUS = cartesian_to_spherical(pointscart)
+
+        # Take a cartesian radpat, make a spherical (much easier to plot)
+        magn = np.sum(G * pointscart, axis=0)
+        magn /= np.max(np.abs(magn))
+        G = np.sqrt( G[0]**2 + G[1]**2 + G[2]**2 ) * magn
+        G = np.reshape(G, AZIMUTH.shape )
+
+        # Styles
+        if style in ('sign', 'bb', 'beachball', 'DC', 'fp'):
+            G[G < 0] = -1
+            G[G >= 0] = 1
+            scale=1
+        elif style == 'None' : 
+            scale = np.abs(G)
+        
+        Y = scale*np.cos(AZIMUTH) * np.sin(TAKEOFF)
+        X = scale*np.sin(AZIMUTH) * np.sin(TAKEOFF)
+        Z = scale*-np.cos(TAKEOFF)
+
+        # initializing the colormap machinery
+        norm = matplotlib.colors.Normalize(vmin=np.min(G),vmax=np.max(G))
+        c_m = matplotlib.cm.Spectral
+        s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
+        s_m.set_array([])
+        
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')  
+        ax.plot_surface(X,Y,Z,linewidth=0, rstride=2, cstride=2, facecolors=s_m.to_rgba(G))
+        plt.colorbar(s_m)
+        plt.xlabel('x')
+        plt.ylabel('y')
+        plt.show() 
 
 
+
+
+
+ 
 
 
 
@@ -361,25 +456,25 @@ def radpat_sheartensile_vavryeuk(mt, wave='P', TKO=np.arange(0,181,1)*np.pi/180,
     
     ## Re-using the same programme to get other things ... 
     elif wave in ('S', 'S-wave', 'S wave'):
-        G = np.sqrt( sheartensile_radpat(mt, 'SH', TKO, AZM, poisson)**2 + sheartensile_radpat(mt, 'SV', TKO, AZM, poisson)**2 )
+        G = np.sqrt( radpat_sheartensile_vavryeuk(mt, 'SH', TKO, AZM, poisson)**2 + radpat_sheartensile_vavryeuk(mt, 'SV', TKO, AZM, poisson)**2 )
 
     elif wave in ('S/P', 's/p'):
-        G = sheartensile_radpat(mt, 'S', TKO, AZM, poisson)/sheartensile_radpat(mt, 'P', TKO, AZM, poisson)  
+        G = radpat_sheartensile_vavryeuk(mt, 'S', TKO, AZM, poisson)/radpat_sheartensile_vavryeuk(mt, 'P', TKO, AZM, poisson)  
 
     elif wave in ('P/S', 'p/s'):
-        G = sheartensile_radpat(mt, 'P', TKO, AZM, poisson)/sheartensile_radpat(mt, 'S', TKO, AZM, poisson)  
+        G = radpat_sheartensile_vavryeuk(mt, 'P', TKO, AZM, poisson)/radpat_sheartensile_vavryeuk(mt, 'S', TKO, AZM, poisson)  
 
     elif wave in ('SH/P', 'sh/p'):
-        G = sheartensile_radpat(mt, 'SH', TKO, AZM, poisson)/sheartensile_radpat(mt, 'P', TKO, AZM, poisson)
+        G = radpat_sheartensile_vavryeuk(mt, 'SH', TKO, AZM, poisson)/radpat_sheartensile_vavryeuk(mt, 'P', TKO, AZM, poisson)
 
     elif wave in ('SV/P', 'sv/p'):
-        G = sheartensile_radpat(mt, 'SV', TKO, AZM, poisson)/sheartensile_radpat(mt, 'P', TKO, AZM, poisson)
+        G = radpat_sheartensile_vavryeuk(mt, 'SV', TKO, AZM, poisson)/radpat_sheartensile_vavryeuk(mt, 'P', TKO, AZM, poisson)
 
     elif wave in ('SH/S', 'sh/s'):
-        G = sheartensile_radpat(mt, 'SH', TKO, AZM, poisson)/sheartensile_radpat(mt, 'S', TKO, AZM, poisson)
+        G = radpat_sheartensile_vavryeuk(mt, 'SH', TKO, AZM, poisson)/radpat_sheartensile_vavryeuk(mt, 'S', TKO, AZM, poisson)
 
     elif wave in ('SV/S', 'sv/s'):
-        G = sheartensile_radpat(mt, 'SV', TKO, AZM, poisson)/sheartensile_radpat(mt, 'S', TKO, AZM, poisson)
+        G = radpat_sheartensile_vavryeuk(mt, 'SV', TKO, AZM, poisson)/radpat_sheartensile_vavryeuk(mt, 'S', TKO, AZM, poisson)
 
     ## Making sure you get that error.
     else:
@@ -454,5 +549,25 @@ def isotropiceffectonSP(mt=[0, 0, 0, 0]):
     plt.show()
 
 
+
+
+
+
+class SeismicSource(object):
+
+    # general attribut definition
+    notes = 'Ceci est a moi, A MOUHA, A-MOU-HAAAAAA'
+
+    def __init__(self, mt):
+
+        self.mt = mt       
+
+    def surfacemotions(self, wave='P', poisson=0.25, style='None'):
+
+        surfacemotions(self.mt, wave, poisson, style) 
+
+    def isotropiceffectonSP(self):
+
+        isotropiceffectonSP(self.mt)
 
         
