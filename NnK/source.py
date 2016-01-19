@@ -15,8 +15,11 @@ source.
     For ...
 
 :copyright:
+
     The ...
+
 :license:
+
     ...
 """
 
@@ -25,21 +28,57 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-#import obspy.imaging.scripts.mopad
+from obspy.imaging.scripts.mopad import MomentTensor
 
 
 def mt_full(mt):
-    """takes 6 comp moment tensor and returns full 3x3 moment tensor"""
-    mt = np.array(([[mt[0], mt[3], mt[4]],
-        [mt[3], mt[1], mt[5]],
-        [mt[4], mt[5], mt[2]]]))
-    return mt
+    """
+    
+    Takes 6 comp moment tensor and returns full 3x3 moment tensor.
+
+    :type mt : list or np.array
+    :param mt : moment tensor NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, 
+        Myz, the six independent components).
+
+    :rtype : np.array 3x3
+    :return : full 3x3 moment tensor
+
+    .. note::
+
+        Use obspy.imaging.scripts.mopad to get correct input.
+    """
+
+    # Make sure we got np.array 
+    if np.asarray(mt) is not mt:
+        mt = np.asarray(mt)
+
+    if len(mt) == 6:        
+        mt = np.array(([[mt[0], mt[3], mt[4]],
+            [mt[3], mt[1], mt[5]],
+            [mt[4], mt[5], mt[2]]]))
+
+    try :
+
+        mt[2][2]
+
+        return mt
+
+    except IndexError:
+        print "Only 1x6 or 3x3 input supported."
+        raise
+
+    
 
 
 def mt_angles(mt): 
 
     ## Getting various formats
-    if len(mt) == 3 :
+    if len(mt) == 2 and len(mt[0]) == 3 :
+        strike, dip, rake = mt [0]
+        isotropic = 0
+        deviatoric = 0
+
+    elif len(mt) == 3 :
         strike, dip, rake = mt
         isotropic = 0
         deviatoric = 0
@@ -180,6 +219,16 @@ def spherical_to_cartesian(vector):
 
 
 def plot_seismicsourcemodel(G, XYZ, style='None') : 
+    """
+
+    add quiver plot, add frame plot
+
+
+    @param vector:  The spherical coordinate vector [phi, theta, r].
+    @type vector:   3D array or list
+    @param cart_vect:       The Cartesian vector [x, y, z].
+    @type cart_vect:        3D array or list
+    """
 
     magn = np.sum(G * XYZ, axis=0)
     magn /= np.max(np.abs(magn))
@@ -231,9 +280,8 @@ def energy_seismicsourcemodel(G, XYZ) :
 
 class Aki_Richards(object):
 
-    def __init__(self, mt, poisson=0.25):
+    def __init__(self, mt):
         self.mt = mt
-        self.poisson = poisson
         
     def radpat(self, wave='P', obs_cart='None', obs_sph=sphere(r=1.,n=1000.)):
         """
@@ -256,6 +304,7 @@ class Aki_Richards(object):
         
         # Get full mt
         Mpq = mt_full(self.mt)
+        
 
         # Get observation points
         ## Get unit sphere, or spherical coordinate if given 
@@ -328,13 +377,16 @@ class Aki_Richards(object):
 
 class Vavryeuk(object):
 
-    def __init__(self, mt, poisson=0.25):
+    def __init__(self, mt, poisson=0.25, components = [0, 100, 0, 100]):
         self.mt = mt
         self.poisson = poisson
+        self.components = components
         
     def radpat(self, wave='P', obs_cart=spherical_to_cartesian(sphere(r=1.,n=1000.)), obs_sph='None'):
         #(mt, wave='P', TKO=np.arange(0,181,1)*np.pi/180, AZM=np.arange(0,361,1)*np.pi/180, poisson=0.25) : 
         """
+        This is not totally working ...
+
         rpgen(strike,dip,rake,isotropic,poisson, TKO, AZM) calculates P-wave, S-wave,
         SH-wave and SV-wave radiation pattern unp.sing shear-tensile source model
         presented in [see references 2, 3, 4 for details]. All input angles 
@@ -523,8 +575,11 @@ class SeismicSource(object):
 
     def __init__(self, mt, poisson=0.25):
 
-        self.Aki_Richards = Aki_Richards(mt,poisson)  
-        self.Vavryeuk = Vavryeuk(mt,poisson)  
+        self.Mt = MomentTensor(mt)
+        self.Aki_Richards = Aki_Richards(np.asarray(self.Mt.get_M('XYZ')))  
+        self.Vavryeuk = Vavryeuk(np.asarray(np.deg2rad(self.Mt.get_fps())),
+            poisson = poisson, 
+            components = [self.Mt.get_iso_percentage(), self.Mt.get_DC_percentage(), self.Mt.get_CLVD_percentage(), self.Mt.get_devi_percentage() ])  
 
 
 # function skeleton
