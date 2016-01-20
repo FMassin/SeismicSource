@@ -309,12 +309,12 @@ def plot_seismicsourcemodel(G, XYZ, style='None') :
     ______________________________________________________________________
     """
     # For unit sphere
-    ## Get amplitude corrections
-    magn = np.sum(G * XYZ, axis=0)
-    magn /= np.max(np.abs(magn))
-
-    ## Get amplitudes
-    amplitudes = np.sqrt( G[0]**2 + G[1]**2 + G[2]**2 ) * magn
+    ## Get polarities as amplitude 
+    amplitudes = np.sign(np.sum(G * XYZ, axis=0)+0.000000000000001)
+    ## Get normal projection as amplitude 
+    amplitudes *= np.sum(G * G, axis=0)
+    ## Get normalized amplitude as amplitude 
+    amplitudes /= np.max(np.abs(amplitudes))
 
     # Styles
     ## For focal sphere, with amplitude sign (~not a beach ball diagram)
@@ -477,6 +477,7 @@ class Aki_Richards(object):
 
             # scal proj of S rad pat onto the meridian 
             # (x1*x2 + y1*y2 + z1*z2/(np.sqrt(x1**2 + y1**2 + z1**2)**2)) * np.array([x1, y1, z1])
+            # see http://math.oregonstate.edu/home/programs/undergrad/CalculusQuestStudyGuides/vcalc/dotprod/dotprod.html
 
             raise Exception('Work in progress: can not compute this wave yet.')
             return disp, obs_cart
@@ -487,6 +488,7 @@ class Aki_Richards(object):
 
             # scal proj of S rad pat ([x2,y2,z2]) onto the parallels ([x1,y1,z1])
             # (x1*x2 + y1*y2 + z1*z2/(np.sqrt(x1**2 + y1**2 + z1**2)**2)) * np.array([x1, y1, z1])
+            # see http://math.oregonstate.edu/home/programs/undergrad/CalculusQuestStudyGuides/vcalc/dotprod/dotprod.html
 
             raise Exception('Work in progress: can not compute this wave yet.')
             return disp, obs_cart
@@ -528,9 +530,8 @@ class Aki_Richards(object):
 
             if wave in ('S', 'S wave', 'S-wave'):
 
-                Mp = np.dot(Mpq, gamma)
-
                 # loop through displacement component [n index]
+                Mp = np.dot(Mpq, gamma)
                 for n in range(ndim):
                     psum = 0.0
                     for p in range(ndim):
