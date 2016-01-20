@@ -1,26 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 source - Module for seismic sources modeling
-======================================================
-This module compute the seismic wave displacement 
-using the theoritical definitions of the seismic 
-source.
+______________________________________________________________________
+This module provide class hierarchy for earthquake modeling and 
+representation.
 
-.. rubric:: Example
-    
-.. figure:: /_images/test.png
-
-.. note::
-
-    For ...
-
-:copyright:
-
-    The ...
-
-:license:
-
-    ...
+The seismic wave displacement  is computed using the theoritical 
+definitions of the seismic source.
 """
 
 
@@ -30,22 +16,22 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from obspy.imaging.scripts.mopad import MomentTensor
 
-
 def mt_full(mt):
-    """
-    
-    Takes 6 comp moment tensor and returns full 3x3 moment tensor.
+    """    
+    Takes 6 components moment tensor and returns full 3x3 moment 
+    tensor.
+    ______________________________________________________________________
+    :type mt : list or np.array.
+    :param mt : moment tensor NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz, 
+        the six independent components).
 
-    :type mt : list or np.array
-    :param mt : moment tensor NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, 
-        Myz, the six independent components).
-
-    :rtype : np.array 3x3
-    :return : full 3x3 moment tensor
+    :rtype : np.array 3x3.
+    :return : full 3x3 moment tensor.
 
     .. note::
 
         Use obspy.imaging.scripts.mopad to get correct input.
+    ______________________________________________________________________
     """
 
     # Make sure we got np.array 
@@ -57,61 +43,98 @@ def mt_full(mt):
             [mt[3], mt[1], mt[5]],
             [mt[4], mt[5], mt[2]]]))
 
-    try :
-
-        mt[2][2]
-
-        return mt
-
-    except IndexError:
-        print "Only 1x6 or 3x3 input supported."
-        raise
-
+    if mt.shape != (3,3) :       
+        raise Exception('I/O dimensions: only 1x6 or 3x3 input supported.')
     
+    return mt
 
 
 def mt_angles(mt): 
+    """    
+    Takes 6 components and returns fps tri-angles in degrees, with 
+    deviatoric, isotropic, DC and CLVD percentages.
+    ______________________________________________________________________
+    :type mt : list or np.array.
+    :param mt : moment tensor NM x 6 (Mxx, Myy, Mzz, 
+        Mxy, Mxz, Myz, the six independent 
+        components).
 
-    ## Getting various formats
-    if len(mt) == 2 and len(mt[0]) == 3 :
-        strike, dip, rake = mt [0]
-        isotropic = 0
-        deviatoric = 0
+    :rtype : np.array [[1x3], [1x4]].
+    :return : full 3x3 moment tensor.
 
-    elif len(mt) == 3 :
+    .. note::
+        Nan value are returned for unknown parameters.
+
+        The deviatoric percentage is the sum of DC and CLVD percentages.
+
+        Use obspy.imaging.scripts.mopad to get correct input.
+    ______________________________________________________________________
+    """
+
+    # Make sure we got np.array 
+    if np.asarray(mt) is not mt:
+        mt = np.asarray(mt)
+
+    # Getting various formats
+    ## if given strike, dip, rake
+    if mt.shape == (3,):
         strike, dip, rake = mt
-        isotropic = 0
-        deviatoric = 0
+        DC = 100
+        CLVD = 0
+        iso = 0
+        devi = 100
+    
+    ## if given [[strike, dip, rake], [strike, dip, rake]] (e.g. by MoPad)
+    elif mt.shape == (2,3) :
+        strike, dip, rake = mt[0]
+        DC = 100
+        CLVD = 0
+        iso = 0
+        devi = 100
+    
+    ## if given [strike, dip, rake, devi]
+    elif mt.shape == (4,):
+        strike, dip, rake, devi = mt
+        DC = np.nan
+        CLVD = np.nan
+        iso = 0
 
-    elif len(mt) == 4 :
-        strike, dip, rake, isotropic = mt
-        deviatoric = 0
+    ## if given [Mxx, Myy, Mzz, Mxy, Mxz, Myz]
+    elif mt.shape == (6,) :
+        
+        mt = MomentTensor(mt,'XYZ') 
+        
+        DC = mt.get_DC_percentage()
+        CLVD = mt.get_CLVD_percentage()
+        iso = mt.get_iso_percentage()
+        devi = mt.get_devi_percentage()
 
-    elif len(mt) == 5 :
-        strike, dip, rake, isotropic, deviatoric = mt
+        mt = mt_angles(mt.get_fps())
+        strike, dip, rake = mt[0]
 
-    elif len(mt) == 6 :
-        strike, dip, rake, isotropic, deviatoric, poubelle = mt
-        print 'We need to find a piece of code to make that...'
+    ## if given full moment tensor
+    elif mt.shape == (3,3) :
 
-    elif len(mt) == 9 :
-        print 'We need to find a piece of code to make that...'
+        mt = mt_angles([mt[0,0], mt[1,1], mt[2,2], mt[0,1], mt[0,2], mt[1,2]])
 
-    else:
-        print 'Can t yet compute this moment tensor.'
+        strike, dip, rake = mt[0]
+        DC, CLVD, iso, devi = mt[1]
 
-    return [strike, dip, rake, isotropic, deviatoric]
+    else:         
+        raise Exception('I/O dimensions: only [1|2]x3, 1x[4|6] and 3x3 inputs supported.')
+
+    return np.array([[strike, dip, rake], [DC, CLVD, iso, devi]])
 
 
 def sphere(r=1.,n=100.):
     """
-    produce the polar coordinates of a sphere. 
-
+    Produce the polar coordinates of a sphere. 
+    ______________________________________________________________________
     :type r, n: variables
     :param r, n: radius and number of resolution points.
     
     :rtype : list
-    :return : 3d list of phi, theta and radius.
+    :return : 3d list of azimuth, polar angle and radial distance.
 
     .. seealso::
 
@@ -135,7 +158,7 @@ def sphere(r=1.,n=100.):
         ax.set_aspect("equal")
         ax.plot_wireframe(points[0], points[1], points[2], color="r")
         plt.show() 
-
+    ______________________________________________________________________
     """
     # Get the resolution (sorry this is ugly)
     c = 0.038 ; 
@@ -150,19 +173,25 @@ def sphere(r=1.,n=100.):
 
 
 def cartesian_to_spherical(vector):
-    """This file is part of the program relax (Edward d'Auvergne).
+    """
+    Convert the Cartesian vector [x, y, z] to spherical coordinates 
+    [azimuth, polar angle, radial distance].
+    ______________________________________________________________________
+    :type vector : 3D array, list | np.array
+    :param vector :  The vector of cartessian coordinates.
+
+    :rtype : 3D array, np.array
+    :return : The spherical coordinate vector.
     
-    http://svn.gna.org/svn/relax/1.3/maths_fns/coord_transform.py
+    .. note::
 
-    Convert the Cartesian vector [x, y, z] to spherical coordinates [theta, phi, r].
+        This file is part of the program relax (Edward d'Auvergne).
 
-    The parameter r is the radial distance, theta is the polar angle, and phi is the azimuth.
-
-
-    @param vector:  The Cartesian vector [x, y, z].
-    @type vector:   numpy rank-1, 3D array
-    @return:        The spherical coordinate vector [theta, phi, r].
-    @rtype:         numpy rank-1, 3D array
+    .. seealso::
+    
+        http://svn.gna.org/svn/relax/1.3/maths_fns/coord_transform.py
+    ______________________________________________________________________
+    
     """
 
     # Make sure we got np.array 
@@ -186,19 +215,25 @@ def cartesian_to_spherical(vector):
 
 
 def spherical_to_cartesian(vector):
-    """This file is part of the program relax (Edward d'Auvergne).
+    """
+    Convert the spherical coordinates [azimuth, polar angle
+    radial distance] to Cartesian coordinates [x, y, z].
+
+    ______________________________________________________________________
+    :type vector : 3D array, list | np.array
+    :param vector :  The spherical coordinate vector.
+
+    :rtype : 3D array, np.array
+    :return : The vector of cartessian coordinates.
     
-    http://svn.gna.org/svn/relax/1.3/maths_fns/coord_transform.py
+    .. note::
 
-    Convert the spherical coordinate vector [theta, phi, r] to the Cartesian vector [x, y, z].
+        This file is part of the program relax (Edward d'Auvergne).
 
-    The parameter r is the radial distance, theta is the polar angle, and phi is the azimuth.
-
-
-    @param vector:  The spherical coordinate vector [phi, theta, r].
-    @type vector:   3D array or list
-    @param cart_vect:       The Cartesian vector [x, y, z].
-    @type cart_vect:        3D array or list
+    .. seealso::
+    
+        http://svn.gna.org/svn/relax/1.3/maths_fns/coord_transform.py
+    ______________________________________________________________________
     """
 
     # Trig alias.
@@ -220,93 +255,250 @@ def spherical_to_cartesian(vector):
 
 def plot_seismicsourcemodel(G, XYZ, style='None') : 
     """
+    Plot the given seismic wave radiation pattern as a color-coded surface 
+    or focal sphere (not exactly as a beach ball diagram).
+    ______________________________________________________________________
+    :type G : 3D array, list | np.array
+    :param G : The vector of cartessian coordinates of the radiation 
+        pattern.
 
-    add quiver plot, add frame plot
+    :type XYZ : 3D array, list | np.array
+    :param XYZ : The cartessian coordinates of the origin points of the
+        radiation pattern.
 
+    :type style : string
+    :param style : type of plot.
 
-    @param vector:  The spherical coordinate vector [phi, theta, r].
-    @type vector:   3D array or list
-    @param cart_vect:       The Cartesian vector [x, y, z].
-    @type cart_vect:        3D array or list
+    :rtype : graphical object
+    :return : The vector of cartessian coordinates.
+
+    .. rubric:: _`Supported style`
+
+        ``'None'``
+            Plot the amplitudes as surface coding absolute amplitude as 
+            radial distance from origin and amplitude polarity with color.
+             (uses :func:`numpy.abs`).
+
+        ``'sign' or 'bb' or 'beachball``
+            Plot a unit sphere, amplitude sign being coded with color.
+             (uses :func:`numpy.abs`).
+
+        ``'frame'``
+            Plot the amplitudes as a mesh, coding absolute amplitude as 
+            radial distance. Amplitude polarity is not represented.
+
+        ``'quiver'``
+            Plot each vectors of the radiation pattern, sign and amplidude
+            being coded with colors. 
+    
+    .. note::
+
+        The radition pattern is rendered as is.
+
+    .. seealso::
+    
+        For earthquake focal mechanism rendering, use 
+        obspy.imaging.beachball.Beachball() : 
+        https://docs.obspy.org/packages/obspy.imaging.html#beachballs
+
+        For more info see  and obspy.imaging.mopad_wrapper.Beachball().
+
+    .. todo::
+
+        Add quiver plot, add frame plot.
+    ______________________________________________________________________
     """
-
+    # For unit sphere
+    ## Get amplitude corrections
     magn = np.sum(G * XYZ, axis=0)
     magn /= np.max(np.abs(magn))
 
+    ## Get amplitudes
     amplitudes = np.sqrt( G[0]**2 + G[1]**2 + G[2]**2 ) * magn
 
     # Styles
-    if style in ('sign', 'bb', 'beachball', 'DC', 'fp'):
+    ## For focal sphere, with amplitude sign (~not a beach ball diagram)
+    if style in ('sign', 'bb', 'beachball'):
         G[G < 0] = -1
         G[G >= 0] = 1
         scale=1
+    ## For a color-coded surface representing amplitudes
     elif style == 'None' : 
         scale = np.abs(amplitudes)
-    
+
+    ## Applying amplitudes for a unit sphere 
     XYZ[0] *= scale 
     XYZ[1] *= scale 
     XYZ[2] *= scale
 
-    # initializing the colormap machinery
+    # Plot
+    ## Initializing the colormap machinery
     norm = matplotlib.colors.Normalize(vmin=np.min(amplitudes),vmax=np.max(amplitudes))
     c_m = matplotlib.cm.Spectral
     s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
     s_m.set_array([])
     
+    ## Initializing the plot
     fig = plt.figure()
     ax = fig.gca(projection='3d')  
     ax.plot_surface(XYZ[0], XYZ[1], XYZ[2],linewidth=0, rstride=1, cstride=1, facecolors=s_m.to_rgba(amplitudes), alpha=0.5)
+    
+    ## Initializing figure keys
     plt.colorbar(s_m)
     plt.xlabel('x')
     plt.ylabel('y')
+
     plt.show() 
+    return fig
 
 
 def energy_seismicsourcemodel(G, XYZ) :    
+    """
+    Evaluate statistical properties of the given seismic wave radiation 
+    pattern.
+    ______________________________________________________________________
+    :type G : 3D array, list | np.array
+    :param G : The vector of cartessian coordinates of the radiation 
+        pattern.
 
-        #amplitudes_correction = np.sum(G * XYZ, axis=0)
-        #amplitudes_correction /= np.max(np.abs(amplitudes_correction))
-        amplitudes = np.sqrt( G[0]**2 + G[1]**2 + G[2]**2 ) #* amplitudes_correction            
-        
-        # Classic rms
-        rms = np.sum(amplitudes**2)/np.prod(amplitudes.shape)  
-        # Euclidian norm
-        norm = np.sqrt(np.sum(amplitudes**2))  
-        # Amplitude average
-        average = np.average(np.abs(amplitudes))  
+    :type XYZ : 3D array, list | np.array
+    :param XYZ : The cartessian coordinates of the origin points of the
+        radiation pattern.
 
-        return [rms, norm, average]
+    :rtype : list
+    :return : The statistical properties of amplitudes [rms, euclidian norm, average].
+
+    .. todo::
+
+        Compute more properties, add request handling.
+    ______________________________________________________________________
+    """
+
+    #amplitudes_correction = np.sum(G * XYZ, axis=0)
+    #amplitudes_correction /= np.max(np.abs(amplitudes_correction))
+    amplitudes = np.sqrt( G[0]**2 + G[1]**2 + G[2]**2 ) #* amplitudes_correction            
+    
+    # Classic rms
+    rms = np.sum(amplitudes**2)/np.prod(amplitudes.shape)  
+    # Euclidian norm
+    norm = np.sqrt(np.sum(amplitudes**2))  
+    # Amplitude average
+    average = np.average(np.abs(amplitudes))  
+
+    return [rms, norm, average]
 
 
 class Aki_Richards(object):
+    """
+    Set an instance of class Aki_Richards() that can be used for 
+    earthquake modeling based on Aki and Richards (2002, eq. 4.29).
+    ______________________________________________________________________
+    :type mt : list
+    :param mt : The focal mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - 
+        the six independent components of the moment tensor).
+
+    .. note::
+
+        This object is composed of three methods : radpat, plot and 
+        energy.
+
+    .. seealso::
+
+            :meth: `radpat`
+            :meth: `plot`
+            :meth: `energy`            
+    ______________________________________________________________________
+
+    """  
 
     def __init__(self, mt):
         self.mt = mt
         
-    def radpat(self, wave='P', obs_cart='None', obs_sph=sphere(r=1.,n=1000.)):
+    def radpat(self, wave='P', obs_cart='None', obs_sph='None'):
         """
-        Returns the P farfield radiation pattern
-        based on Aki & Richards Eq 4.29
-
-        :param mt: Focal mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - the
-                   six independent components of the moment tensor)
+        Returns the farfield radiation pattern (normalized displacement) based 
+        on Aki and Richards (2002, eq. 4.29) and the cartesian coordinates of 
+        the observation points.
+        ______________________________________________________________________
+        :type self : object: Aki_Richards
+        :param self : This method use de self.mt attribute, i.e. the focal 
+            mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - the six 
+            independent components of the moment tensor)
 
         :type wave: String
         :param wave: type of wave to compute
 
-        :param points: 3D vector array with shape [3,npts] (x,y,z) or [2,npts]
-                       (theta,phi) The normalized displacement of the moment
-                       tensor source is computed at these points.
+        :type obs_cart : list | np.array 
+        :param obs_cart : 3D vector array specifying the observations points
+            in cartesian coordinates. 
 
-        :return: 3D vector array with shape [3,npts] that contains the
-                 displacement vector for each grid point
+        :type obs_sph : list | np.array 
+        :param obs_sph : 3D vector array specifying the observations points
+            in spherical coordinates (radians). The default is a unit sphere.
+
+        :rtype : np.array 
+        :return : 3D vector array with same shape than requested, that 
+            contains the displacement vector for each observation point.
+
+        .. rubric:: _`Supported wave`
+
+            ``'P'``
+                Bodywave P.
+
+            ``'S' or 'S wave' or 'S-wave``
+                Bodywave S.
+
+            ``'Sv'``
+                Projection of S on the meridian of the focal sphere.
+
+            ``'Sh'``
+                Projection of S on the parallels of the focal sphere. 
+
+        .. note::
+
+            This is based on MMesch, ObsPy, radpattern.py :
+                https://github.com/MMesch/obspy/blob/radpattern/obspy/core/event/radpattern.py
+
+        .. seealso::
+    
+            Aki, K., & Richards, P. G. (2002). Quantitative Seismology. (J. 
+                Ellis, Ed.) (2nd ed.). University Science Books
+
+        .. todo::
+
+            Implement Sv and Sh wave (see below)
+        ______________________________________________________________________
         """
-        
+
+        # Special cases ######################################################
+        if wave in ('Sv', 'Sv', 'S_v', 'Sv wave', 'Sv-wave'):
+
+            disp, obs_cart = radpat(self, wave='S', obs_cart='None', obs_sph=sphere(r=1.,n=1000.))
+
+            # scal proj of S rad pat onto the meridian 
+            # (x1*x2 + y1*y2 + z1*z2/(np.sqrt(x1**2 + y1**2 + z1**2)**2)) * np.array([x1, y1, z1])
+
+            raise Exception('Work in progress: can not compute this wave yet.')
+            return disp, obs_cart
+
+        elif wave in ('Sh', 'Sh', 'S_h', 'Sh wave', 'Sh-wave'):
+
+            disp, obs_cart = radpat(self, wave='S', obs_cart='None', obs_sph=sphere(r=1.,n=1000.))
+
+            # scal proj of S rad pat ([x2,y2,z2]) onto the parallels ([x1,y1,z1])
+            # (x1*x2 + y1*y2 + z1*z2/(np.sqrt(x1**2 + y1**2 + z1**2)**2)) * np.array([x1, y1, z1])
+
+            raise Exception('Work in progress: can not compute this wave yet.')
+            return disp, obs_cart
+        ######################################################################
+
         # Get full mt
         Mpq = mt_full(self.mt)
         
 
         # Get observation points
+        if obs_sph == 'None':
+            obs_sph = sphere(r=1.,n=1000.)
         ## Get unit sphere, or spherical coordinate if given 
         if obs_cart == 'None' :
             obs_cart = spherical_to_cartesian(obs_sph)
@@ -362,12 +554,103 @@ class Aki_Richards(object):
         return disp, obs_cart
 
     def plot(self, wave='P',style='None') :    
+        """
+        Plot the radiation pattern.
+        ______________________________________________________________________
+        :type self : object: Aki_Richards
+        :param self : This method use de self.mt attribute, i.e. the focal 
+            mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - the six 
+            independent components of the moment tensor)
 
+        :type wave: string
+        :param wave: type of wave to compute
+
+        :type style : string
+        :param style : type of plot.
+
+        :rtype : graphical object
+        :return : The vector of cartessian coordinates.
+
+        .. rubric:: _`Supported wave`
+
+            ``'P'``
+                Bodywave P.
+
+            ``'S' or 'S wave' or 'S-wave``
+                Bodywave S.
+
+            ``'Sv'``
+                Projection of S on the meridian of the focal sphere.
+
+            ``'Sh'``
+                Projection of S on the parallels of the focal sphere. 
+
+        .. rubric:: _`Supported style`
+
+            ``'None'``
+                Plot the amplitudes as surface coding absolute amplitude as 
+                radial distance from origin and amplitude polarity with color.
+                 (uses :func:`numpy.abs`).
+
+            ``'sign' or 'bb' or 'beachball``
+                Plot a unit sphere, amplitude sign being coded with color.
+                 (uses :func:`numpy.abs`).
+
+            ``'frame'``
+                Plot the amplitudes as a mesh, coding absolute amplitude as 
+                radial distance. Amplitude polarity is not represented.
+
+            ``'quiver'``
+                Plot each vectors of the radiation pattern, sign and amplidude
+                being coded with colors. 
+
+        .. seealso::
+
+                :func: `plot_seismicsourcemodel`
+                :class: `Aki_Richards.radpat`
+        ______________________________________________________________________
+
+        """
         # Get radiation pattern
         G, XYZ = self.radpat(wave)
         plot_seismicsourcemodel(G, XYZ, style='None')
 
-    def energy(self, wave='P') :    
+    def energy(self, wave='P') :   
+        """
+        Get statistical properties of radiation pattern.
+        ______________________________________________________________________
+        :type self : object: Aki_Richards
+        :param self : This method use de self.mt attribute, i.e. the focal 
+            mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - the six 
+            independent components of the moment tensor)
+
+        :type wave: string
+        :param wave: type of wave to compute
+
+        :rtype : list
+        :return : The statistical properties of amplitudes [rms, euclidian norm, average].
+
+        .. rubric:: _`Supported wave`
+
+            ``'P'``
+                Bodywave P.
+
+            ``'S' or 'S wave' or 'S-wave``
+                Bodywave S.
+
+            ``'Sv'``
+                Projection of S on the meridian of the focal sphere.
+
+            ``'Sh'``
+                Projection of S on the parallels of the focal sphere. 
+
+        .. seealso::
+
+                :func: `energy_seismicsourcemodel`
+                :class: `Aki_Richards.radpat`
+        ______________________________________________________________________
+
+        """ 
 
         # Get radiation pattern and estimate energy
         G, XYZ = self.radpat(wave)  
@@ -376,93 +659,104 @@ class Aki_Richards(object):
 
 
 class Vavryeuk(object):
+    """
+    Set an instance of class Vavryeuk() that can be used for 
+    earthquake modeling based on Vavryèuk (2001).
+    ______________________________________________________________________
+    :type mt : list
+    :param mt : The focal mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - 
+        the six independent components of the moment tensor).
 
-    def __init__(self, mt, poisson=0.25, components = [0, 100, 0, 100]):
+    :type poisson: variable
+    :param poisson: Poisson coefficient (0.25 by default).
+
+    .. note::
+
+        This object is composed of three methods : radpat, plot and 
+        energy.
+
+    .. seealso::
+
+            :meth: `radpat`
+            :meth: `plot`
+            :meth: `energy`            
+    ______________________________________________________________________
+
+    """  
+
+    def __init__(self, mt, poisson=0.25):
         self.mt = mt
         self.poisson = poisson
-        self.components = components
         
-    def radpat(self, wave='P', obs_cart=spherical_to_cartesian(sphere(r=1.,n=1000.)), obs_sph='None'):
-        #(mt, wave='P', TKO=np.arange(0,181,1)*np.pi/180, AZM=np.arange(0,361,1)*np.pi/180, poisson=0.25) : 
+    def radpat(self, wave='P', obs_cart='None', obs_sph='None'):
         """
-        This is not totally working ...
+        Returns the farfield radiation pattern (normalized displacement) based 
+        on Vavryèuk (2001) and the cartesian coordinates of the observation 
+        points.
+        ______________________________________________________________________
+        :type self : object: Vavryeuk
+        :param self : This method use de self.poisson and self.mt attributes, 
+            i.e. the focal mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - 
+            the six independent components of the moment tensor).
 
-        rpgen(strike,dip,rake,isotropic,poisson, TKO, AZM) calculates P-wave, S-wave,
-        SH-wave and SV-wave radiation pattern unp.sing shear-tensile source model
-        presented in [see references 2, 3, 4 for details]. All input angles 
-        (strike, dip, rake of the fault, tensile angle isotropic, takeoff angle 
-        TKO and azimuth from the source to the observation point AZM) should 
-        be in radians. The takeoff angle is measure from bottom. The function 
-        returns matrices of the same size as input TKO and AZM matrices. 
-
-        :type strike, dip, rake: ObsPy : variables
-        :param strike, dip, rake: fault plane parameters (radians).
-        
-        :type isotropic: variable
-        :param isotropic: tensile angle in radians (0 radians for pure shear faulting, 
-            pi/2 radians for pure tensile opening).
-        
-        :type poisson: variable
-        :param poisson:  Poisson's ratio.
-        
-        :type TKO: variable
-        :param TKO: matrix of takeoff angles for which to calculate the 
-            corresponding radiation pattern coefficients (radians, the takeoff 
-            angles are measured from bottom).
-        
-        :type AZM: variable
-        :param AZM: matrix of corresponding azimuths (in radians) for which the 
-            radiation pattern coefficients should be calculated.
-        
         :type wave: String
         :param wave: type of wave to compute
-        
-        :rtype Gp, Gs, Gsh, Gsv: vectors
-        :return Gp, Gs, Gsh, Gsv: P-wave, S-wave, SH-wave, and SV-wave radiation 
-             pattern coefficients calculated for corresponding takeoff angles 
-             and azimuths specified in TKO and AZM matrices.
 
-        .. seealso::
+        :type obs_cart : list | np.array 
+        :param obs_cart : 3D vector array specifying the observations points
+            in cartesian coordinates. 
 
-            [1] Kwiatek, G. (2013/09/15). Radiation pattern from shear-tensile 
-             seismic source. Revision: 1.3. http://www.npworks.com/matlabcentral/fileexchange/43524-radiation-pattern-from-shear-tensile-seismic-source
+        :type obs_sph : list | np.array 
+        :param obs_sph : 3D vector array specifying the observations points
+            in spherical coordinates (radians). The default is a unit sphere. 
 
-            [2] Kwiatek, G. and Y. Ben-Zion (2013). Assessment of P and S wave 
+        :rtype : np.array 
+        :return : 3D vector array with same shape than requested, that 
+            contains the displacement vector for each observation point.
+
+        .. rubric:: _`Supported wave`
+
+            ``'P'``
+                Bodywave P.
+
+            ``'S' or 'S wave' or 'S-wave``
+                Bodywave S.
+
+            ``'Sv'``
+                Projection of S on the meridian of the focal sphere.
+
+            ``'Sh'``
+                Projection of S on the parallels of the focal sphere. 
+
+        .. note::
+
+            This is based on Kwiatek, G. (2013/09/15). Radiation pattern from 
+            shear-tensile seismic source. Revision: 1.3 :
+            http://www.npworks.com/matlabcentral/fileexchange/43524-radiation-pattern-from-shear-tensile-seismic-source
+
+        .. seealso::            
+
+            [1] Vavryèuk, V., 2001. Inversion for parameters of tensile 
+             earthquakes.” J. Geophys. Res. 106 (B8): 16339–16355. 
+             doi: 10.1029/2001JB000372.
+
+            [2] Ou, G.-B., 2008, Seismological Studies for Tensile Faults. 
+             Terrestrial, Atmospheric and Oceanic Sciences 19, 463.
+
+            [3] Kwiatek, G. and Y. Ben-Zion (2013). Assessment of P and S wave 
              energy radiated from very small shear-tensile seismic events in 
              a deep South African mine. J. Geophys. Res. 118, 3630-3641, 
              doi: 10.1002/jgrb.50274
 
-            [3] Ou, G.-B., 2008, Seismological Studies for Tensile Faults. 
-             Terrestrial, Atmospheric and Oceanic Sciences 19, 463.
-
-            [4] Vavryèuk, V., 2001. Inversion for parameters of tensile 
-             earthquakes.” J. Geophys. Res. 106 (B8): 16339–16355. 
-             doi: 10.1029/2001JB000372.
-
         .. rubric:: Example
 
-            import numpy as np
-            
-            AZIMUTH = np.arange(0,360,5)*np.pi/180
-            TAKEOFF = np.arange(0,180,5)*np.pi/180
-            [AZIMUTH,TAKEOFF] = np.meshgrid(AZIMUTH,TAKEOFF)
-
-            strike = 50 * np.pi/180.0
-            dip = 60 * np.pi/180.0
-            rake = -90 * np.pi/180.0
-            poisson = 0.25
-            isotropic = 0 * np.pi/180.0
-            GP = source.sheartensile_radpat(strike,dip,rake,isotropic,poisson, TAKEOFF, AZIMUTH, 'P')
-                   
+            ex = NnK.source.SeismicSource([0,0,0,0,0,1])
+            Svect, obs =  ex.Vavryeuk.radpat('S')                   
 
         .. plot::
 
-            strike = 50 * np.pi/180.0
-            dip = 60 * np.pi/180.0
-            rake = -90 * np.pi/180.0
-            poisson = 0.25
-            isotropic = 0 * np.pi/180.0
-            source.sheartensile_plot(strike,dip,rake,isotropic,poisson, 'P') # try 'P' or 'S' or 'SH' or 'SV' or any ratio
+            ex.Vavryeuk.plot()
+        ______________________________________________________________________
 
         """
         # 1) Calculate moving rms and average, see moving()
@@ -471,14 +765,16 @@ class Vavryeuk(object):
         
         poisson = self.poisson
 
-        # Moment tensor
-        strike, dip, rake, isotropic, deviatoric = mt_angles(self.mt)        
-
-        ## convert isotropic ratio to angle
-        isotropic = np.arcsin(isotropic)
-        
+        # Get angle from moment tensor
+        [strike, dip, rake], [DC, CLVD, iso, deviatoric] = mt_angles(self.mt) 
+        ## in radians
+        [strike, dip, rake] = np.deg2rad([strike, dip, rake])
+        ## convert deviatoric ratio to angle
+        deviatoric = np.arcsin(1.-(deviatoric/100.))        
 
         # Get observation points
+        if obs_cart == 'None' :
+            obs_cart = spherical_to_cartesian(sphere(r=1.,n=1000.))
         ## Get unit sphere, or spherical coordinate if given 
         if obs_sph == 'None' :
             obs_sph = cartesian_to_spherical(obs_cart)
@@ -490,7 +786,6 @@ class Vavryeuk(object):
             obs_sph = np.asarray(obs_sph)
         if np.asarray(obs_cart) is not obs_cart:
             obs_cart = np.asarray(obs_cart)
-
         
         # Radiation patterns
         # G is the amplitude for each observation point
@@ -506,20 +801,20 @@ class Vavryeuk(object):
 
         ## Tensile definitions by Vavryèuk (2001)
         if wave in ('P', 'P-wave', 'P wave'):
-            G = np.cos(TKO)*(np.cos(TKO)*(np.sin(isotropic)*(2*np.cos(dip)**2 - (2*poisson)/(2*poisson - 1)) + np.sin(2*dip)*np.cos(isotropic)*np.sin(rake)) - np.cos(AZM)*np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike)) + np.sin(AZM)*np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic))) + np.sin(AZM)*np.sin(TKO)*(np.cos(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic)) + np.cos(AZM)*np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) + np.sin(AZM)*np.sin(TKO)*(np.cos(isotropic)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) - np.cos(AZM)*np.sin(TKO)*(np.cos(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike)) - np.sin(AZM)*np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) + np.cos(AZM)*np.sin(TKO)*(np.cos(isotropic)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)))
+            G = np.cos(TKO)*(np.cos(TKO)*(np.sin(deviatoric)*(2*np.cos(dip)**2 - (2*poisson)/(2*poisson - 1)) + np.sin(2*dip)*np.cos(deviatoric)*np.sin(rake)) - np.cos(AZM)*np.sin(TKO)*(np.cos(deviatoric)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(deviatoric)*np.sin(strike)) + np.sin(AZM)*np.sin(TKO)*(np.cos(deviatoric)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(deviatoric))) + np.sin(AZM)*np.sin(TKO)*(np.cos(TKO)*(np.cos(deviatoric)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(deviatoric)) + np.cos(AZM)*np.sin(TKO)*(np.cos(deviatoric)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(deviatoric)) + np.sin(AZM)*np.sin(TKO)*(np.cos(deviatoric)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(deviatoric)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) - np.cos(AZM)*np.sin(TKO)*(np.cos(TKO)*(np.cos(deviatoric)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(deviatoric)*np.sin(strike)) - np.sin(AZM)*np.sin(TKO)*(np.cos(deviatoric)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(deviatoric)) + np.cos(AZM)*np.sin(TKO)*(np.cos(deviatoric)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(deviatoric)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)))
         
         elif wave in ('SH', 'Sh', 'Sh-wave', 'Sh wave', 'SH-wave', 'SH wave'):
-            G = np.cos(TKO)*(np.cos(AZM)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic)) + np.sin(AZM)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike))) - np.sin(AZM)*np.sin(TKO)*(np.sin(AZM)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) - np.cos(AZM)*(np.cos(isotropic)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) + np.cos(AZM)*np.sin(TKO)*(np.sin(AZM)*(np.cos(isotropic)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)) + np.cos(AZM)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)))
+            G = np.cos(TKO)*(np.cos(AZM)*(np.cos(deviatoric)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(deviatoric)) + np.sin(AZM)*(np.cos(deviatoric)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(deviatoric)*np.sin(strike))) - np.sin(AZM)*np.sin(TKO)*(np.sin(AZM)*(np.cos(deviatoric)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(deviatoric)) - np.cos(AZM)*(np.cos(deviatoric)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(deviatoric)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) + np.cos(AZM)*np.sin(TKO)*(np.sin(AZM)*(np.cos(deviatoric)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(deviatoric)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)) + np.cos(AZM)*(np.cos(deviatoric)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(deviatoric)))
             
         elif wave in ('SV', 'Sv', 'Sv-wave', 'Sv wave', 'SV-wave', 'SV wave'):
-            G = np.sin(AZM)*np.sin(TKO)*(np.cos(AZM)*np.cos(TKO)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) - np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic)) + np.cos(TKO)*np.sin(AZM)*(np.cos(isotropic)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) - np.cos(TKO)*(np.sin(TKO)*(np.sin(isotropic)*(2*np.cos(dip)**2 - (2*poisson)/(2*poisson - 1)) + np.sin(2*dip)*np.cos(isotropic)*np.sin(rake)) + np.cos(AZM)*np.cos(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike)) - np.cos(TKO)*np.sin(AZM)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic))) + np.cos(AZM)*np.sin(TKO)*(np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike)) + np.cos(TKO)*np.sin(AZM)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) - np.cos(AZM)*np.cos(TKO)*(np.cos(isotropic)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)))
+            G = np.sin(AZM)*np.sin(TKO)*(np.cos(AZM)*np.cos(TKO)*(np.cos(deviatoric)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(deviatoric)) - np.sin(TKO)*(np.cos(deviatoric)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(deviatoric)) + np.cos(TKO)*np.sin(AZM)*(np.cos(deviatoric)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(deviatoric)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) - np.cos(TKO)*(np.sin(TKO)*(np.sin(deviatoric)*(2*np.cos(dip)**2 - (2*poisson)/(2*poisson - 1)) + np.sin(2*dip)*np.cos(deviatoric)*np.sin(rake)) + np.cos(AZM)*np.cos(TKO)*(np.cos(deviatoric)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(deviatoric)*np.sin(strike)) - np.cos(TKO)*np.sin(AZM)*(np.cos(deviatoric)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(deviatoric))) + np.cos(AZM)*np.sin(TKO)*(np.sin(TKO)*(np.cos(deviatoric)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(deviatoric)*np.sin(strike)) + np.cos(TKO)*np.sin(AZM)*(np.cos(deviatoric)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(deviatoric)) - np.cos(AZM)*np.cos(TKO)*(np.cos(deviatoric)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(deviatoric)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)))
         
         ## Re-using the same programme to get other things ... 
         elif wave in ('S', 'S-wave', 'S wave'):
 
             # for such definition this the less ugly
-            Gsh = np.cos(TKO)*(np.cos(AZM)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic)) + np.sin(AZM)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike))) - np.sin(AZM)*np.sin(TKO)*(np.sin(AZM)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) - np.cos(AZM)*(np.cos(isotropic)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) + np.cos(AZM)*np.sin(TKO)*(np.sin(AZM)*(np.cos(isotropic)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)) + np.cos(AZM)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)))
-            Gsv = np.sin(AZM)*np.sin(TKO)*(np.cos(AZM)*np.cos(TKO)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) - np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic)) + np.cos(TKO)*np.sin(AZM)*(np.cos(isotropic)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) - np.cos(TKO)*(np.sin(TKO)*(np.sin(isotropic)*(2*np.cos(dip)**2 - (2*poisson)/(2*poisson - 1)) + np.sin(2*dip)*np.cos(isotropic)*np.sin(rake)) + np.cos(AZM)*np.cos(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike)) - np.cos(TKO)*np.sin(AZM)*(np.cos(isotropic)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(isotropic))) + np.cos(AZM)*np.sin(TKO)*(np.sin(TKO)*(np.cos(isotropic)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(isotropic)*np.sin(strike)) + np.cos(TKO)*np.sin(AZM)*(np.cos(isotropic)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(isotropic)) - np.cos(AZM)*np.cos(TKO)*(np.cos(isotropic)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(isotropic)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)))
+            Gsh = np.cos(TKO)*(np.cos(AZM)*(np.cos(deviatoric)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(deviatoric)) + np.sin(AZM)*(np.cos(deviatoric)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(deviatoric)*np.sin(strike))) - np.sin(AZM)*np.sin(TKO)*(np.sin(AZM)*(np.cos(deviatoric)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(deviatoric)) - np.cos(AZM)*(np.cos(deviatoric)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(deviatoric)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) + np.cos(AZM)*np.sin(TKO)*(np.sin(AZM)*(np.cos(deviatoric)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(deviatoric)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)) + np.cos(AZM)*(np.cos(deviatoric)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(deviatoric)))
+            Gsv = np.sin(AZM)*np.sin(TKO)*(np.cos(AZM)*np.cos(TKO)*(np.cos(deviatoric)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(deviatoric)) - np.sin(TKO)*(np.cos(deviatoric)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(deviatoric)) + np.cos(TKO)*np.sin(AZM)*(np.cos(deviatoric)*(np.sin(2*strike)*np.cos(rake)*np.sin(dip) - np.sin(2*dip)*np.cos(strike)**2*np.sin(rake)) - np.sin(deviatoric)*((2*poisson)/(2*poisson - 1) - 2*np.cos(strike)**2*np.sin(dip)**2))) - np.cos(TKO)*(np.sin(TKO)*(np.sin(deviatoric)*(2*np.cos(dip)**2 - (2*poisson)/(2*poisson - 1)) + np.sin(2*dip)*np.cos(deviatoric)*np.sin(rake)) + np.cos(AZM)*np.cos(TKO)*(np.cos(deviatoric)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(deviatoric)*np.sin(strike)) - np.cos(TKO)*np.sin(AZM)*(np.cos(deviatoric)*(np.cos(2*dip)*np.cos(strike)*np.sin(rake) - np.cos(dip)*np.cos(rake)*np.sin(strike)) - np.sin(2*dip)*np.cos(strike)*np.sin(deviatoric))) + np.cos(AZM)*np.sin(TKO)*(np.sin(TKO)*(np.cos(deviatoric)*(np.cos(2*dip)*np.sin(rake)*np.sin(strike) + np.cos(dip)*np.cos(rake)*np.cos(strike)) - np.sin(2*dip)*np.sin(deviatoric)*np.sin(strike)) + np.cos(TKO)*np.sin(AZM)*(np.cos(deviatoric)*(np.cos(2*strike)*np.cos(rake)*np.sin(dip) + (np.sin(2*dip)*np.sin(2*strike)*np.sin(rake))/2) - np.sin(2*strike)*np.sin(dip)**2*np.sin(deviatoric)) - np.cos(AZM)*np.cos(TKO)*(np.cos(deviatoric)*(np.sin(2*dip)*np.sin(rake)*np.sin(strike)**2 + np.sin(2*strike)*np.cos(rake)*np.sin(dip)) + np.sin(deviatoric)*((2*poisson)/(2*poisson - 1) - 2*np.sin(dip)**2*np.sin(strike)**2)))
 
             G = np.sqrt(Gsh**2 + Gsv**2)
 
@@ -553,14 +848,105 @@ class Vavryeuk(object):
         return np.asarray(G_cart), np.asarray(obs_cart)
 
 
-    def plot(self, wave='P',style='None') :    
+    def plot(self, wave='P',style='None') :     
+        """
+        Plot the radiation pattern.
+        ______________________________________________________________________
+        :type self : object: Vavryeuk
+        :param self : This method use de self.mt attribute, i.e. the focal 
+            mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - the six 
+            independent components of the moment tensor)
+
+        :type wave: string
+        :param wave: type of wave to compute
+
+        :type style : string
+        :param style : type of plot.
+
+        :rtype : graphical object
+        :return : The vector of cartessian coordinates.
+
+        .. rubric:: _`Supported wave`
+
+            ``'P'``
+                Bodywave P.
+
+            ``'S' or 'S wave' or 'S-wave``
+                Bodywave S.
+
+            ``'Sv'``
+                Projection of S on the meridian of the focal sphere.
+
+            ``'Sh'``
+                Projection of S on the parallels of the focal sphere. 
+
+        .. rubric:: _`Supported style`
+
+            ``'None'``
+                Plot the amplitudes as surface coding absolute amplitude as 
+                radial distance from origin and amplitude polarity with color.
+                 (uses :func:`numpy.abs`).
+
+            ``'sign' or 'bb' or 'beachball``
+                Plot a unit sphere, amplitude sign being coded with color.
+                 (uses :func:`numpy.abs`).
+
+            ``'frame'``
+                Plot the amplitudes as a mesh, coding absolute amplitude as 
+                radial distance. Amplitude polarity is not represented.
+
+            ``'quiver'``
+                Plot each vectors of the radiation pattern, sign and amplidude
+                being coded with colors. 
+
+        .. seealso::
+
+                :func: `plot_seismicsourcemodel`
+                :class: `Vavryeuk.radpat`
+        ______________________________________________________________________
+
+        """
 
         # Get radiation pattern and plot
         G, XYZ = self.radpat(wave)
         plot_seismicsourcemodel(G, XYZ, style='None')
 
-    def energy(self, wave='P') :    
+    def energy(self, wave='P') :   
+        """
+        Get statistical properties of radiation pattern.
+        ______________________________________________________________________
+        :type self : object: Vavryeuk
+        :param self : This method use de self.mt attribute, i.e. the focal 
+            mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - the six 
+            independent components of the moment tensor)
 
+        :type wave: string
+        :param wave: type of wave to compute
+
+        :rtype : list
+        :return : The statistical properties of amplitudes [rms, euclidian norm, average].
+
+        .. rubric:: _`Supported wave`
+
+            ``'P'``
+                Bodywave P.
+
+            ``'S' or 'S wave' or 'S-wave``
+                Bodywave S.
+
+            ``'Sv'``
+                Projection of S on the meridian of the focal sphere.
+
+            ``'Sh'``
+                Projection of S on the parallels of the focal sphere. 
+
+        .. seealso::
+
+                :func: `energy_seismicsourcemodel`
+                :class: `Vavryeuk.radpat`
+        ______________________________________________________________________
+
+        """  
         # Get radiation pattern and estimate energy
         G, XYZ = self.radpat(wave)  
         estimators = energy_seismicsourcemodel(G, XYZ)
@@ -569,17 +955,43 @@ class Vavryeuk(object):
 
 
 class SeismicSource(object):
+    """
+    Set an instance of class SeismicSource() that can be used for 
+    earthquake modeling.
+    ______________________________________________________________________
+    :type mt : list
+    :param mt : Definition of the focal mechanism supported 
+        obspy.imaging.scripts.mopad.MomentTensor().
 
-    # general attribut definition
-    notes = 'Ceci est a moi, A MOUHA, A-MOU-HAAAAAA'
+    :type poisson: variable
+    :param poisson: Poisson coefficient (0.25 by default).
+
+    .. example::
+
+        ex = NnK.source.SeismicSource([1,2,3,4,5,6])
+        ex.Aki_Richards.plot('P')
+
+    .. note::
+
+        This object is composed of three classes : MomentTensor, 
+        Aki_Richards and Vavryeuk.
+
+    .. seealso::
+
+            :class: `obspy.imaging.scripts.mopad.MomentTensor`
+            :class: `Aki_Richards`
+            :class: `Vavryeuk`            
+    ______________________________________________________________________
+
+    """  
+    # General attribut definition
+    notes = 'Ceci est à moi'
 
     def __init__(self, mt, poisson=0.25):
 
-        self.Mt = MomentTensor(mt)
-        self.Aki_Richards = Aki_Richards(np.asarray(self.Mt.get_M('XYZ')))  
-        self.Vavryeuk = Vavryeuk(np.asarray(np.deg2rad(self.Mt.get_fps())),
-            poisson = poisson, 
-            components = [self.Mt.get_iso_percentage(), self.Mt.get_DC_percentage(), self.Mt.get_CLVD_percentage(), self.Mt.get_devi_percentage() ])  
+        self.MomentTensor = MomentTensor(mt)
+        self.Aki_Richards = Aki_Richards(np.asarray(self.MomentTensor.get_M('XYZ')))  
+        self.Vavryeuk = Vavryeuk(np.asarray(self.MomentTensor.get_M('XYZ')),poisson = poisson)  
 
 
 # function skeleton
