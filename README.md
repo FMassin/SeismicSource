@@ -4,7 +4,7 @@ A simple module for basic seismic source modeling.
 ## Importing the SeismicSource class
 Start python and run:
   ```python
-  from source import SeismicSources
+  from source import SeismicSource
   ```
 The `SeismicSources` class then be used.
 
