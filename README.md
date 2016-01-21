@@ -1,5 +1,6 @@
 # SeismicSource
 A simple module for basic seismic source modeling.
+Before installing, first resolve all dependencies by installing [ObsPy](https://github.com/obspy/obspy).
 
 ## Importing the SeismicSource class
 Start python and run:
