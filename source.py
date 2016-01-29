@@ -435,7 +435,7 @@ def plot_seismicsourcemodel(disp, xyz, style='*', mt=None, comp=None, ax=None) :
     s_m.set_array([])
     ## Initializing the plot
     if ax == None:
-        fig = plt.figure()
+        fig = plt.figure(figsize=plt.figaspect(1.2))
         ax = fig.gca(projection='3d')  
     plt.xlabel('X')
     plt.ylabel('Y')
