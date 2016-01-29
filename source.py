@@ -200,12 +200,26 @@ def vector_normal(XYZ, v_or_h):
     :param b :  The cartesian coordinates of vectors.
 
     :type v_or_h : string
-    :param v_or_h :  The cartesian coordinates of vectors.
+    :param v_or_h :  The normal direction to pick.
 
     :rtype : 3D np.array
     :return : Requested normal on vertical or horizontal plane 
         ('v|vert|vertical' or 'h|horiz|horizontal').
     
+    .. rubric:: _`Supported v_or_h`
+
+        ``'v'``
+            Vertical.
+
+        ``'h'``
+            horizontal.
+
+        ``'r'``
+            Radial component.
+
+        ``'m'``
+            The meridian component.
+
     .. note::
 
         There is maybe better (built in numpy) ways to do this.
@@ -221,7 +235,7 @@ def vector_normal(XYZ, v_or_h):
 
     ATR = np.asarray(cartesian_to_spherical(XYZ))
 
-    if v_or_h in ('n', 'nhr', 'normal horizontal radial', 'norm horiz rad'): 
+    if v_or_h in ('m', 'meridian', 'n', 'nhr', 'normal horizontal radial', 'norm horiz rad'): 
         ATR_n = np.array([ ATR[0] , ATR[1] - ninetydeg[0], ATR[2]])
         XYZ_n = np.asarray(spherical_to_cartesian(ATR_n))
     elif v_or_h in ('h', 'horizontal', 'horiz'): 
@@ -364,37 +378,66 @@ def plot_seismicsourcemodel(disp, xyz, style='*', mt=None, comp=None, ax=None) :
     :type mt : list | np.array
     :param mt : moment tensor definition supported by MoPad, used in title.
 
+    :type comp : string
+    :param comp : component onto radiation pattern is projected to 
+        infer amplitudes (norm and sign).
+
     :rtype : graphical object
-    :return : The vector of cartessian coordinates.
+    :return : The axe3d including plot.
 
     .. rubric:: _`Supported style`
 
         ``'*'``
-            Plot the amplitudes as surface coding absolute amplitude as 
-            radial distance from origin and amplitude polarity with color.
-             (uses :func:`numpy.abs`).
+            Plot options q, s and p together.
 
-        ``beachball``
+        ``'b'``
             Plot a unit sphere, amplitude sign being coded with color.
              (uses :func:`numpy.abs`).
 
-        ``'wireframe'``
-            Plot the amplitudes as a mesh, coding absolute amplitude as 
-            radial distance. Amplitude polarity is not represented.
+        ``'q'``
+            This a comet plot, displacements magnitudes, directions and 
+             final state are given, respectively by the colors, lines and 
+             points (as if looking at comets).  
 
-        ``'quiver'``
-            Plot each vectors of the radiation pattern, sign and amplidude
-            being coded with colors. 
+        ``'s'``
+            Plot the amplitudes as surface coding absolute amplitude as 
+             radial distance from origin and amplitude polarity with color.
+             (uses :func:`numpy.abs`).
 
-        ``'surface'``
-            Plot ...
+        ``'f'``
+            Plot the amplitudes as a wireframe, coding absolute amplitude as 
+             radial distance. The displacement polarities are not 
+             represented.
 
-        ``'polarities'``
-            Plot ...
-    
+        ``'p'``
+            Plot the polarities sectors using a colorcoded wireframe. 
+             The magnitudes of displacements are not represented.
+
+    .. rubric:: _`Supported comp`
+
+        ``'None'``
+            The radiation pattern is rendered as is if no comp option is 
+            given (best for S wave).
+
+        ``'v'``
+            Vertical component (best for S or Sv wave).
+
+        ``'h'``
+            horizontal component (best for S or Sh waves, null for P).
+
+        ``'r'``
+            Radial component (best for P waves, null for S).
+
+        ``'m'``
+            The meridian component (best for S or Sn waves, null for P).
+
     .. note::
 
-        The radition pattern is rendered as is.
+        The radiation pattern is rendered as is if no comp option is given.
+
+        In the title of the plot, SDR stand for strike, dip, rake angles 
+        and IDC stand for isotropic, double couple, compensated linear 
+        vector dipole percentages.
 
     .. seealso::
     
@@ -403,10 +446,6 @@ def plot_seismicsourcemodel(disp, xyz, style='*', mt=None, comp=None, ax=None) :
         https://docs.obspy.org/packages/obspy.imaging.html#beachballs
 
         For more info see  and obspy.imaging.mopad_wrapper.Beachball().
-
-    .. todo::
-
-        make work in given axe
     ______________________________________________________________________
     """
 
@@ -614,10 +653,13 @@ class Aki_Richards(object):
                 Bodywave S.
 
             ``'Sv'``
-                Projection of S on the meridian of the focal sphere.
+                Projection of S on the vertical.
 
             ``'Sh'``
                 Projection of S on the parallels of the focal sphere. 
+
+            ``'Sm'``
+                Projection of S on the meridian of the focal sphere.
 
         .. note::
 
@@ -636,7 +678,7 @@ class Aki_Richards(object):
         """
 
         # Special cases ######################################################
-        if wave in ('SH', 'Sv', 'S_v', 'Sv wave', 'Sv-wave'):
+        if wave in ('Sv', 'Sv', 'S_v', 'Sv wave', 'Sv-wave'):
 
             ## Get S waves
             disp, obs_cart = self.radpat(wave='S', obs_cart=obs_cart, obs_sph=obs_sph)
@@ -645,16 +687,16 @@ class Aki_Richards(object):
 
             return disp, obs_cart
 
-        elif wave in ('SN', 'Sn', 'Snrh', 'Snrh wave', 'Snrh-wave'):
+        elif wave in ('Sm', 'SM', 'SN', 'Sn', 'Snrh', 'Snrh wave', 'Snrh-wave'):
 
             ## Get S waves
             disp, obs_cart = self.radpat(wave='S', obs_cart=obs_cart, obs_sph=obs_sph)
             ## Project on Sh component
-            disp = project_vectors(disp, vector_normal(obs_cart, 'nhr')) 
+            disp = project_vectors(disp, vector_normal(obs_cart, 'm')) 
 
             return disp, obs_cart
 
-        elif wave in ('SV', 'Sh', 'S_h', 'Sh wave', 'Sh-wave'):
+        elif wave in ('SH', 'Sh', 'S_h', 'Sh wave', 'Sh-wave'):
 
             ## Get S waves
             disp, obs_cart = self.radpat(wave='S', obs_cart=obs_cart, obs_sph=obs_sph)
@@ -733,14 +775,18 @@ class Aki_Richards(object):
             mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - the six 
             independent components of the moment tensor)
 
-        :type wave: string
+        :type wave: String
         :param wave: type of wave to compute
 
         :type style : string
         :param style : type of plot.
 
+        :type comp : string
+        :param comp : component onto radiation pattern is projected to 
+            infer amplitudes (norm and sign).
+
         :rtype : graphical object
-        :return : The vector of cartessian coordinates.
+        :return : The axe3d including plot.
 
         .. rubric:: _`Supported wave`
 
@@ -751,29 +797,67 @@ class Aki_Richards(object):
                 Bodywave S.
 
             ``'Sv'``
-                Projection of S on the meridian of the focal sphere.
+                Projection of S on the vertical.
 
             ``'Sh'``
                 Projection of S on the parallels of the focal sphere. 
 
+            ``'Sm'``
+                Projection of S on the meridian of the focal sphere.
+
         .. rubric:: _`Supported style`
 
-            ``'None'``
-                Plot the amplitudes as surface coding absolute amplitude as 
-                radial distance from origin and amplitude polarity with color.
-                 (uses :func:`numpy.abs`).
+            ``'*'``
+                Plot options q, s and p together.
 
-            ``'sign' or 'bb' or 'beachball``
+            ``'b'``
                 Plot a unit sphere, amplitude sign being coded with color.
                  (uses :func:`numpy.abs`).
 
-            ``'frame'``
-                Plot the amplitudes as a mesh, coding absolute amplitude as 
-                radial distance. Amplitude polarity is not represented.
+            ``'q'``
+                This a comet plot, displacements magnitudes, directions and 
+                 final state are given, respectively by the colors, lines and 
+                 points (as if looking at comets).  
 
-            ``'quiver'``
-                Plot each vectors of the radiation pattern, sign and amplidude
-                being coded with colors. 
+            ``'s'``
+                Plot the amplitudes as surface coding absolute amplitude as 
+                 radial distance from origin and amplitude polarity with color.
+                 (uses :func:`numpy.abs`).
+
+            ``'f'``
+                Plot the amplitudes as a wireframe, coding absolute amplitude as 
+                 radial distance. The displacement polarities are not 
+                 represented.
+
+            ``'p'``
+                Plot the polarities sectors using a colorcoded wireframe. 
+                 The magnitudes of displacements are not represented.
+
+        .. rubric:: _`Supported comp`
+
+            ``'None'``
+                The radiation pattern is rendered as is if no comp option is 
+                given (best for S wave).
+
+            ``'v'``
+                Vertical component (best for S or Sv wave).
+
+            ``'h'``
+                horizontal component (best for S or Sh waves, null for P).
+
+            ``'r'``
+                Radial component (best for P waves, null for S).
+
+            ``'n'``
+                The meridian component (best for S or Sn waves, null for P).
+
+        .. note::
+
+            The radiation pattern is rendered as is if no comp option is given.
+
+            In the title of the plot, SDR stand for strike, dip, rake angles 
+            and IDC stand for isotropic, double couple, compensated linear 
+            vector dipole percentages.
 
         .. seealso::
 
@@ -787,8 +871,8 @@ class Aki_Richards(object):
         if comp == None :
             if wave in ('Sv', 'Sv wave', 'Sv-wave'):
                 comp='v'
-            elif wave in ('Sn', 'Snrh','Snrh wave', 'Snrh-wave'):
-                comp='n'
+            elif wave in ('Sm', 'Sn', 'Snrh','Snrh wave', 'Snrh-wave'):
+                comp='m'
             elif wave in ('Sh', 'Sh wave', 'Sh-wave'):
                 comp='h'
             elif wave in ('P', 'P wave', 'P-wave'):
@@ -820,10 +904,13 @@ class Aki_Richards(object):
                 Bodywave S.
 
             ``'Sv'``
-                Projection of S on the meridian of the focal sphere.
+                Projection of S on the vertical.
 
             ``'Sh'``
                 Projection of S on the parallels of the focal sphere. 
+
+            ``'Sm'``
+                Projection of S on the meridian of the focal sphere.
 
         .. seealso::
 
@@ -904,7 +991,7 @@ class Vavryeuk(object):
                 Bodywave S.
 
             ``'Sv'``
-                Projection of S on the meridian of the focal sphere.
+                Projection of S on the vertical.
 
             ``'Sh'``
                 Projection of S on the parallels of the focal sphere. 
@@ -1038,14 +1125,14 @@ class Vavryeuk(object):
             mechanism NM x 6 (Mxx, Myy, Mzz, Mxy, Mxz, Myz - the six 
             independent components of the moment tensor)
 
-        :type wave: string
+        :type wave: String
         :param wave: type of wave to compute
 
         :type style : string
         :param style : type of plot.
 
         :rtype : graphical object
-        :return : The vector of cartessian coordinates.
+        :return : The axe3d including plot.
 
         .. rubric:: _`Supported wave`
 
@@ -1056,29 +1143,46 @@ class Vavryeuk(object):
                 Bodywave S.
 
             ``'Sv'``
-                Projection of S on the meridian of the focal sphere.
+                Projection of S on the vertical.
 
             ``'Sh'``
                 Projection of S on the parallels of the focal sphere. 
 
         .. rubric:: _`Supported style`
 
-            ``'None'``
-                Plot the amplitudes as surface coding absolute amplitude as 
-                radial distance from origin and amplitude polarity with color.
-                 (uses :func:`numpy.abs`).
+            ``'*'``
+                Plot options q, s and p together.
 
-            ``'sign' or 'bb' or 'beachball``
+            ``'b'``
                 Plot a unit sphere, amplitude sign being coded with color.
                  (uses :func:`numpy.abs`).
 
-            ``'frame'``
-                Plot the amplitudes as a mesh, coding absolute amplitude as 
-                radial distance. Amplitude polarity is not represented.
+            ``'q'``
+                This a comet plot, displacements magnitudes, directions and 
+                 final state are given, respectively by the colors, lines and 
+                 points (as if looking at comets).  
 
-            ``'quiver'``
-                Plot each vectors of the radiation pattern, sign and amplidude
-                being coded with colors. 
+            ``'s'``
+                Plot the amplitudes as surface coding absolute amplitude as 
+                 radial distance from origin and amplitude polarity with color.
+                 (uses :func:`numpy.abs`).
+
+            ``'f'``
+                Plot the amplitudes as a wireframe, coding absolute amplitude as 
+                 radial distance. The displacement polarities are not 
+                 represented.
+
+            ``'p'``
+                Plot the polarities sectors using a colorcoded wireframe. 
+                 The magnitudes of displacements are not represented.
+
+        .. note::
+
+            The radiation pattern is rendered as is if no comp option is given.
+
+            In the title of the plot, SDR stand for strike, dip, rake angles 
+            and IDC stand for isotropic, double couple, compensated linear 
+            vector dipole percentages.
 
         .. seealso::
 
@@ -1116,7 +1220,7 @@ class Vavryeuk(object):
                 Bodywave S.
 
             ``'Sv'``
-                Projection of S on the meridian of the focal sphere.
+                Projection of S on the vertical.
 
             ``'Sh'``
                 Projection of S on the parallels of the focal sphere. 
